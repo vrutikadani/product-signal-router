@@ -97,3 +97,55 @@ def test_late_partition_holds_instead_of_deciding():
     r = run_daily(TODAY, late, cr, SignalStore(), ListSink())
     assert r.evaluations[0].decision in (Decision.HOLD, Decision.NO_SIGNAL, Decision.MONITOR)
     assert r.evaluations[0].decision != Decision.SURFACE
+
+
+# follow-ups found while fixing the cases above ---------------------------
+
+def test_rerun_under_new_logic_version_does_not_open_second_signal(monkeypatch):
+    import expansion_signals.engine as engine_mod
+    wh, cr = _world()
+    store, sink = SignalStore(), ListSink()
+    run_daily(TODAY, wh, cr, store, sink)
+    monkeypatch.setattr(engine_mod, "LOGIC_VERSION", "9.9.9")
+    run_daily(TODAY, wh, cr, store, sink)
+    assert len(sink.delivered) == 1
+
+
+def test_dismissal_lifts_when_strength_rises():
+    store = SignalStore()
+    d0 = TODAY - timedelta(days=20)
+    weak = feats(as_of=d0, data_loaded_through=d0, users_added_30d=0, features_added_30d=0,
+                 consumption_30d=20000, consumption_prior_30d=5000)
+    first = evaluate(weak, crm(), store, d0)
+    assert first.strength == Band.MEDIUM
+    rec, _ = store.record_surfaced(first)
+    store.dismiss(rec.key, d0, "not_a_fit")
+    ev = evaluate(feats(), crm(), store, TODAY)   # now HIGH: value + adoption
+    assert ev.decision == Decision.SURFACE
+
+
+def test_wrong_owner_feedback_routes_until_fixed():
+    store = SignalStore()
+    d0 = TODAY - timedelta(days=20)
+    rec, _ = store.record_surfaced(evaluate(feats(as_of=d0, data_loaded_through=d0), crm(), store, d0))
+    store.dismiss(rec.key, d0, "wrong_owner")
+    assert evaluate(feats(), crm(), store, TODAY).decision == Decision.ROUTE
+
+
+def test_spike_with_real_adoption_still_counts_adoption():
+    f = feats(consumption_30d=16000, consumption_prior_30d=3000, largest_event_share_30d=0.85,
+              users_added_30d=5, features_added_30d=2)
+    ev = evaluate(f, crm(), SignalStore(), TODAY)
+    fired = {x.family for x in ev.families if x.fired}
+    assert "value" not in fired and {"adoption", "breadth"} <= fired
+
+
+def test_merged_sibling_carries_no_ai_context():
+    from expansion_signals.ai_context import TemplateSummarizer
+    wh, _ = _world()
+    rows = list(wh.rows) + [ProductEvent("a2", e.day, e.kind, e.user_id, e.amount) for e in wh.rows]
+    wh2 = InMemoryWarehouse({"a1": wh.created["a1"], "a2": wh.created["a1"]}, rows, TODAY)
+    cr = InMemoryCrm({"a1": crm(account_id="a1"), "a2": crm(account_id="a2")})
+    r = run_daily(TODAY, wh2, cr, SignalStore(), ListSink(), summarizer=TemplateSummarizer())
+    loser = [e for e in r.evaluations if e.decision == Decision.SUPPRESS][0]
+    assert loser.ai_context["used"] is False

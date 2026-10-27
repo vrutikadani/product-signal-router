@@ -14,7 +14,7 @@ from .ai_context import Summarizer
 from .config import Config
 from .engine import evaluate
 from .features import compute_features
-from .models import Decision, Evaluation
+from .models import Band, Decision, Evaluation
 from .state import SignalStore
 
 
@@ -52,6 +52,10 @@ def run_daily(
         feats = compute_features(acct, warehouse.events(acct, as_of), as_of, created, data_loaded_through=min(loaded, as_of))
         ev = evaluate(feats, crm.context(acct), store, today, config, summarizer)
         result.evaluations.append(ev)
+
+    _one_signal_per_crm_account(result.evaluations, store)
+
+    for ev in result.evaluations:
         if ev.decision == Decision.SURFACE:
             rec, created_new = store.record_surfaced(ev)
             if created_new:
@@ -60,3 +64,33 @@ def run_daily(
             else:
                 result.duplicates_skipped += 1
     return result
+
+
+_RANK = {Band.HIGH: 3, Band.MEDIUM: 2, Band.LOW: 1, Band.NONE: 0}
+
+
+def _one_signal_per_crm_account(evals: list[Evaluation], store: SignalStore) -> None:
+    """Several product accounts can resolve to one CRM account (a parent company
+    with two workspaces, a reseller, a re-signup). The seller works the CRM
+    account, so only one of them may surface per day. The winner is chosen
+    deterministically so a replay picks the same one."""
+    groups: dict[str, list[Evaluation]] = {}
+    for ev in evals:
+        if ev.decision == Decision.SURFACE and ev.crm_account_id:
+            groups.setdefault(ev.crm_account_id, []).append(ev)
+    for crm_id, group in groups.items():
+        if len(group) < 2:
+            continue
+        already = [ev for ev in group if store.get(store.key_for(ev))]
+        winner = already[0] if already else sorted(
+            group, key=lambda e: (-_RANK[e.strength], -_RANK[e.confidence], e.account_id))[0]
+        for ev in group:
+            if ev is winner:
+                ev.seller_notes.append(
+                    "also signalling on the same CRM account: "
+                    + ", ".join(e.account_id for e in group if e is not winner))
+                continue
+            ev.decision = Decision.SUPPRESS
+            ev.actionable = False
+            ev.ai_context = {"used": False, "reason": "merged into another signal; AI only runs on surfaced signals"}
+            ev.blocking_reasons.insert(0, f"merged into {winner.account_id} (same CRM account {crm_id})")

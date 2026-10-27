@@ -22,7 +22,7 @@ def evaluate(
 ) -> Evaluation:
     families, strength = evaluate_strength(f, config)
     confidence, conf_reasons = evaluate_confidence(f, crm.match_method, today, config)
-    rules = check_rules(f, crm, store, today, config)
+    rules, notes = check_rules(f, crm, store, today, config, strength)
     passed = [label for ok, label, _ in rules if ok]
     blocking = [(label, dec) for ok, label, dec in rules if not ok]
 
@@ -50,5 +50,7 @@ def evaluate(
         blocking_reasons=[b[0] for b in blocking],
         rules_passed=passed,
         decision=decision,
+        crm_account_id=crm.crm_account_id,
+        seller_notes=notes,
     )
     return attach_context(ev, summarizer)

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-LOGIC_VERSION = "1.0.0"
+LOGIC_VERSION = "1.1.0"
 
 
 @dataclass(frozen=True)
@@ -28,8 +28,19 @@ class Config:
     # confidence
     min_history_days: int = 45           # velocity on less history is mostly onboarding ramp
     max_top_user_share: float = 0.8      # one person doing everything is not an organization
+    max_single_event_share: float = 0.5  # above this, velocity is recomputed without that event
     max_data_lag_days: int = 1           # warehouse refreshes daily; >1 day behind = stale
 
     # actionability
     recent_activity_days: int = 14
     cooldown_days: int = 14
+    dismiss_not_a_fit_days: int = 90     # unless strength rises above the band it was dismissed at
+    dismiss_bad_timing_days: int = 30
+    dismiss_already_engaged_days: int = 30
+
+
+# CRM activity that means a conversation is happening. One-way touches
+# (sequence steps, sent emails) do not suppress a signal; unknown types do,
+# because guessing "not engaged" puts a second seller on a live conversation.
+TWO_WAY_ACTIVITY = {"meeting", "call_connected", "reply", "demo"}
+ONE_WAY_ACTIVITY = {"sequence_step", "email_sent", "call_attempt"}

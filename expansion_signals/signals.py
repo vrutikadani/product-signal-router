@@ -23,6 +23,14 @@ def value_family(f: AccountFeatures, c: Config) -> SignalFamilyResult:
     ev = [f"consumption 30d {f.consumption_30d:,.0f} vs prior {f.consumption_prior_30d:,.0f}"]
     if v is not None:
         ev.append(f"velocity {v:.1f}x")
+    if v is not None and f.largest_event_share_30d > c.max_single_event_share:
+        # Recompute without the single largest event. If the growth disappears,
+        # it was one transaction, not a trend.
+        largest = f.largest_event_share_30d * f.consumption_30d
+        v_ex = (f.consumption_30d - largest) / f.consumption_prior_30d
+        ev.append(f"one event is {f.largest_event_share_30d:.0%} of 30d consumption; "
+                  f"velocity without it {v_ex:.1f}x")
+        v = v_ex
     if f.consumption_30d < c.value_floor_30d or v is None or v < c.value_velocity_min:
         return SignalFamilyResult("value", False, Band.NONE, ev)
     band = Band.HIGH if v >= c.value_velocity_high else Band.MEDIUM

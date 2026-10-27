@@ -73,7 +73,11 @@ class CrmContext:
     owner_active: bool = True
     open_opportunity: bool = False
     last_activity_date: Optional[date] = None
-    last_activity_type: Optional[str] = None   # email | call | meeting | sequence_step
+    last_activity_type: Optional[str] = None   # see config.TWO_WAY_ACTIVITY / ONE_WAY_ACTIVITY
+
+    @property
+    def crm_account_id(self) -> Optional[str]:
+        return self.crm_account_ids[0] if len(self.crm_account_ids) == 1 else None
 
 
 @dataclass
@@ -97,6 +101,8 @@ class Evaluation:
     blocking_reasons: list[str]
     rules_passed: list[str]
     decision: Decision
+    crm_account_id: Optional[str] = None
+    seller_notes: list[str] = field(default_factory=list)
     ai_context: Optional[dict] = None
 
     def to_dict(self) -> dict:

@@ -29,6 +29,7 @@ class SignalRecord:
     logic_version: str
     strength: str
     confidence: str
+    crm_account_id: Optional[str] = None
     status: str = OPEN
     snoozed_until: Optional[date] = None
     dismiss_reason: Optional[str] = None
@@ -41,7 +42,10 @@ class SignalStore:
 
     @staticmethod
     def key_for(ev: Evaluation) -> str:
-        return f"{ev.account_id}:{ev.as_of.isoformat()}:{ev.logic_version}"
+        # Keyed on the day the features describe, not the time the job ran, and
+        # not on logic version: a re-run under new logic must not open a second
+        # signal for the same account-day.
+        return f"{ev.account_id}:{ev.as_of.isoformat()}"
 
     def record_surfaced(self, ev: Evaluation) -> tuple[SignalRecord, bool]:
         """Idempotent: the same evaluation recorded twice returns the existing row."""
@@ -49,18 +53,26 @@ class SignalStore:
         if key in self.records:
             return self.records[key], False
         rec = SignalRecord(key, ev.account_id, ev.as_of, ev.logic_version,
-                           ev.strength.value, ev.confidence.value)
+                           ev.strength.value, ev.confidence.value, ev.crm_account_id)
         rec.history.append((ev.as_of.isoformat(), "SURFACED"))
         self.records[key] = rec
         return rec, True
 
-    def for_account(self, account_id: str) -> list[SignalRecord]:
-        return sorted((r for r in self.records.values() if r.account_id == account_id),
+    def for_account(self, account_id: str, crm_account_id: Optional[str] = None) -> list[SignalRecord]:
+        return sorted((r for r in self.records.values()
+                       if r.account_id == account_id
+                       or (crm_account_id is not None and r.crm_account_id == crm_account_id)),
                       key=lambda r: r.as_of)
 
-    def last_surfaced(self, account_id: str) -> Optional[SignalRecord]:
-        recs = self.for_account(account_id)
+    def last_surfaced(self, account_id: str, before: Optional[date] = None,
+                      crm_account_id: Optional[str] = None) -> Optional[SignalRecord]:
+        """Most recent signal for this product account or anything sharing its CRM account."""
+        recs = [r for r in self.for_account(account_id, crm_account_id)
+                if before is None or r.as_of < before]
         return recs[-1] if recs else None
+
+    def get(self, key: str) -> Optional[SignalRecord]:
+        return self.records.get(key)
 
     # seller feedback -----------------------------------------------------
     def action(self, key: str, on: date) -> None:
