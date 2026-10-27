@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-LOGIC_VERSION = "1.4.0"
+LOGIC_VERSION = "1.5.0"
 
 
 @dataclass(frozen=True)
@@ -29,13 +29,14 @@ class Config:
     min_history_days: int = 45           # velocity on less history is mostly onboarding ramp
     max_top_user_share: float = 0.8      # one person doing everything is not an organization
     max_single_event_share: float = 0.5  # above this, velocity is recomputed without that event
-    max_data_lag_days: int = 1           # warehouse refreshes daily; >1 day behind = stale
+    max_data_lag_days: int = 0           # features for day D need D's partition; any gap = stale
 
     # actionability
     recent_activity_days: int = 14
     cooldown_days: int = 14
-    open_signal_expiry_days: int = 21
-    seller_capacity_per_week: int = 5    # new signals per owner per rolling 7 days; set from a capacity review    # an unanswered signal stays the one open signal until it expires
+    open_signal_expiry_days: int = 21    # an unanswered signal stays the one open signal until it expires
+    unanswered_quiet_days: int = 90      # after expiry, silence counts as a soft "no" until this age, unless strength rises
+    seller_capacity_per_week: int = 5    # new signals per owner per rolling 7 days; set from a capacity review
     dismiss_not_a_fit_days: int = 90     # unless strength rises above the band it was dismissed at
     dismiss_bad_timing_days: int = 30
     dismiss_already_engaged_days: int = 30

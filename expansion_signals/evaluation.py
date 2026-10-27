@@ -15,6 +15,7 @@ from typing import Optional
 
 from .adapters import InMemoryWarehouse, ListSink
 from .config import LOGIC_VERSION, Config
+from .features import compute_features
 from .models import CrmContext, Decision
 from .pipeline import run_daily
 from .state import SignalStore
@@ -78,14 +79,15 @@ def replay(accounts: list[SyntheticAccount], events, start: date, end: date,
             if when > d:
                 still.append((when, acct, key))
                 continue
-            a = idx[acct]
-            will_expand = a.expanded_on is not None and 0 < (a.expanded_on - d).days <= LOOKBACK_DAYS
+            # Outcome-blind on purpose: a simulated seller who only dismisses
+            # accounts that won't expand makes every dismissal free and
+            # flatters precision. (An earlier version did exactly that.)
             r = rng.random()
-            if will_expand and r < 0.7:
+            if r < 0.30:
                 store.action(key, d)
-            elif not will_expand and r < 0.5:
+            elif r < 0.60:
                 store.dismiss(key, d, "not_a_fit")
-            elif r < 0.65:
+            elif r < 0.75:
                 store.snooze(key, d, 14)
             # otherwise the seller never responds
         pending_feedback = still
@@ -93,17 +95,23 @@ def replay(accounts: list[SyntheticAccount], events, start: date, end: date,
     return Replay(dict(by_account), delivered, store, list(late_days))
 
 
-def _miss_cause(history: list[tuple[date, str, list[str]]], large: bool) -> str:
+def _miss_cause(history: list[tuple[date, str, list[str]]], large: bool, moved: bool) -> str:
     decisions = {dec for _, dec, _ in history}
     if Decision.ROUTE.value in decisions:
         return "ownership or identity unresolved"
     if Decision.HOLD.value in decisions:
-        return "held (stale data, cooldown or low confidence)"
+        return "held (stale data, cooldown, capacity or open episode)"
     if Decision.SUPPRESS.value in decisions:
-        return "suppressed (already engaged or dismissed)"
-    if Decision.MONITOR.value in decisions:
-        return "weak signal (only one family moved)"
-    return "large steady account, no change to detect" if large else "no behavior change"
+        return "suppressed (engaged, merged, dismissed or unanswered)"
+    if moved:
+        return "behavior moved but stayed below every threshold"
+    return "large steady account, no change to detect" if large else "no measurable change"
+
+
+def _moved(features) -> bool:
+    """Some movement, short of firing: a near miss rather than a flat account."""
+    v = features.consumption_velocity
+    return (v is not None and v >= 1.5) or features.users_added_30d >= 2 or features.features_added_30d >= 1
 
 
 def measure(accounts: list[SyntheticAccount], rp: Replay, start: date, end: date, events) -> dict:
@@ -119,8 +127,14 @@ def measure(accounts: list[SyntheticAccount], rp: Replay, start: date, end: date
         if e is not None and 0 < (e - d).days <= LOOKBACK_DAYS:
             hits += 1
     precision = hits / len(rp.delivered) if rp.delivered else None
+    acct_hit = {acct for d, acct, _ in rp.delivered
+                if idx[acct].expanded_on is not None and 0 < (idx[acct].expanded_on - d).days <= LOOKBACK_DAYS}
+    precision_accounts = len(acct_hit) / len(first_surface) if first_surface else None
 
     # recall denominator: expansions inside the measurable window, Sales not already on it
+    events_by: dict[str, list] = defaultdict(list)
+    for e in events:
+        events_by[e.account_id].append(e)
     volume = defaultdict(float)
     for e in events:
         if e.kind == "consumption":
@@ -143,8 +157,10 @@ def measure(accounts: list[SyntheticAccount], rp: Replay, start: date, end: date
             lead_times.append((e - min(surfaced)).days)
         else:
             hist = [h for h in rp.by_account.get(a.account_id, []) if 0 < (e - h[0]).days <= LOOKBACK_DAYS]
+            day_before = min(e - timedelta(days=1), end)
+            f = compute_features(a.account_id, events_by.get(a.account_id, []), day_before, a.created_on, day_before)
             misses.append({"account_id": a.account_id, "archetype": a.archetype,
-                           "cause": _miss_cause(hist, volume[a.account_id] >= cutoff),
+                           "cause": _miss_cause(hist, volume[a.account_id] >= cutoff, _moved(f)),
                            "expanded_on": e.isoformat()})
     recall = len(caught) / len(eligible) if eligible else None
 
@@ -183,6 +199,7 @@ def measure(accounts: list[SyntheticAccount], rp: Replay, start: date, end: date
         "signals_delivered": len(rp.delivered),
         "accounts_surfaced": len(first_surface),
         "precision_60d": round(precision, 3) if precision is not None else None,
+        "precision_60d_by_account": round(precision_accounts, 3) if precision_accounts is not None else None,
         "recall_60d": round(recall, 3) if recall is not None else None,
         "eligible_expansions": len(eligible),
         "expansions_already_engaged": engaged_expansions,
@@ -221,7 +238,8 @@ def coverage_audit(accounts: list[SyntheticAccount], events, as_of: date, surfac
     out = []
     for acct in ranked:
         c = idx[acct].crm
-        talking = c.last_activity_date is not None and c.last_activity_type not in ONE_WAY_ACTIVITY
+        talking = (c.last_activity_date is not None and c.last_activity_type not in ONE_WAY_ACTIVITY
+                   and 0 <= (as_of - c.last_activity_date).days <= 30)
         if acct in surfaced or c.open_opportunity or talking:
             continue
         out.append(acct)

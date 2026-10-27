@@ -15,7 +15,7 @@ from typing import Optional
 
 from .config import ONE_WAY_ACTIVITY, Config
 from .models import AccountFeatures, Band, CrmContext, Decision
-from .state import DISMISSED, OPEN, SNOOZED, SignalStore
+from .state import DISMISSED, EXPIRED, OPEN, SNOOZED, SignalStore
 
 Rule = tuple[bool, str, Optional[Decision]]
 _ORDER = [Band.NONE, Band.LOW, Band.MEDIUM, Band.HIGH]
@@ -73,6 +73,14 @@ def check_rules(f: AccountFeatures, crm: CrmContext, store: SignalStore, today: 
             # A signal is an episode, not a daily alert: if the seller has not
             # answered the last one, do not send another on top of it.
             rules.append((False, f"open signal from {age}d ago still waiting on the seller", Decision.HOLD))
+        elif last.status in (OPEN, EXPIRED):
+            # Expired without an answer. Until 1.5 this fell through to the
+            # cooldown rule, so the same signal was resent every 21 days.
+            rose = _ORDER.index(strength) > _ORDER.index(Band(last.strength))
+            quiet = age < c.unanswered_quiet_days and not rose
+            rules.append((not quiet, f"signal from {age}d ago expired unanswered; quiet for "
+                          f"{c.unanswered_quiet_days}d unless strength rises above {last.strength}",
+                          Decision.SUPPRESS))
         else:
             rules.append((age >= c.cooldown_days, f"not surfaced in last {c.cooldown_days} days", Decision.HOLD))
             snoozed = last.status == SNOOZED and last.snoozed_until is not None and last.snoozed_until > today

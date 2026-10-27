@@ -17,6 +17,7 @@ ACTIONED = "ACTIONED"
 SNOOZED = "SNOOZED"
 DISMISSED = "DISMISSED"
 EXPIRED = "EXPIRED"
+CLEARED = "CLEARED"
 
 DISMISS_REASONS = {"not_a_fit", "already_engaged", "bad_data", "wrong_owner", "bad_timing"}
 
@@ -94,7 +95,7 @@ class SignalStore:
     def clear(self, key: str, on: date) -> None:
         """RevOps reviewed a 'bad data' or 'wrong owner' dismissal and resolved it."""
         r = self.records[key]
-        r.status = EXPIRED
+        r.status = CLEARED
         r.history.append((on.isoformat(), "CLEARED by review"))
 
     def dismiss(self, key: str, on: date, reason: str) -> None:

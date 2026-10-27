@@ -1,13 +1,14 @@
 # Failure postmortem
 
-Two rounds of testing broke the first version. Unit tests written against the design passed. Cases written to break it did not, and a replay over synthetic history found problems neither set of tests had covered.
+Three rounds of testing broke what I'd built. Unit tests written against the design passed. Cases written to break it did not. A replay over synthetic history found problems neither set of tests had covered. An independent review of the finished version then found three more bugs and a flaw in the evaluation itself.
 
 Evidence in this repository:
 
 - [`docs/evidence/v1_adversarial_run.txt`](evidence/v1_adversarial_run.txt): the adversarial run against v1, 6 failed and 3 passed
-- [`docs/evidence/eval_before_history_and_episode_fix.md`](evidence/eval_before_history_and_episode_fix.md): the replay report on logic 1.1.0
-- [`docs/evidence/eval_after.md`](evidence/eval_after.md): the same replay on 1.4.0
-- the commit history: `Engine v1`, then `Add adversarial cases (6 of 9 fail on v1)`, then the fixes
+- [`docs/evidence/eval_1.1.0.md`](evidence/eval_1.1.0.md): the replay report on logic 1.1.0
+- [`docs/evidence/eval_1.4.0.md`](evidence/eval_1.4.0.md): the same replay on 1.4.0
+- [`docs/evidence/review_findings_run.txt`](evidence/review_findings_run.txt): the three review cases failing on 1.4.0
+- the commit history, in the order the work happened: v1, the failing adversarial cases, the fixes, the replay, then the review cases and their fixes. The project was built in one focused session, so the timestamps are close together. The commits are not reconstructed after the fact
 
 ## The main failure: onboarding looked like expansion, and the safeguard did nothing
 
@@ -60,8 +61,24 @@ Three cases passed on v1: a real meeting still suppresses, late warehouse data h
 
 Fix 3 (read only earlier days) broke something that had worked by accident. The v1 signal key was `account:day:logic_version`. v1 never duplicated on a re-run under new logic, because its cooldown counted the same-day record. Once same-day records stopped counting, a re-run under a new logic version would open a second signal for the same account-day. The key is now `account:day`, and `test_rerun_under_new_logic_version_does_not_open_second_signal` covers it. I confirmed the test fails with the old key.
 
+## Third round: an independent review of 1.4.0
+
+I asked a reviewer with no context on the build to read the code as a Staff Engineer would and to try to break it. Three cases failed on 1.4.0 (they're at the bottom of `tests/test_adversarial.py`):
+
+| Case | 1.4.0 behavior | Fix (1.5.0) |
+|---|---|---|
+| A signal nobody answers | Held for 21 days, then fell through to the cooldown rule and was resent, every 21 days, forever. My episode fix had only moved the period from 14 days to 21 | After expiry, silence counts as a soft "no": quiet until 90 days after the first signal, unless strength rises |
+| The warehouse replays a partition (duplicate rows) | `event_id` was in the model and never used. A duplicated month doubled consumption and fired the value family on its own | Rows are deduplicated on `event_id` in feature computation |
+| The day's partition is one day late | `lag <= 1` passed, so the first late day was decided on a window missing its last day. In the replay, every late-data HOLD was on the second late day, and two signals went out on the first | Any missing partition holds |
+
+The review also caught a flaw in the evaluation. **The simulated sellers knew the future.** They only dismissed accounts that weren't going to expand, so in the replay a dismissal could never cost a real expansion. Sellers are now outcome-blind, and per-signal precision went from 0.214 to 0.198. The miss audit also had a misleading label. "No behavior change" really meant "no signal fired", and it included accounts whose behavior had moved but stayed below threshold. It's now split.
+
+Four bugs across the three rounds share one pattern: a field or concept was in the model, and nothing enforced it (`owner_active`, `largest_event_share_30d`, `event_id`, episode expiry). A test that only checks the easy side of a boundary passes in that situation. Each of the new tests checks the other side (day 22 and day 70, lag 1, duplicates).
+
 ## What I'd watch for next
 
 - **Velocity is late.** In the replay, many *org expander* accounts expanded before the 30-vs-30 velocity crossed 2x. Median lead time is 16 days. A shorter window (14 vs 14) or a slope over weekly buckets might fire earlier, at the cost of more noise. That should be backtested, not assumed.
-- **Capacity barely binds in the replay** (1 account-day held). With 12 owners and 400 accounts that is expected. In production, capacity needs a real number from Sales before launch.
-- **The coverage audit is circular here.** It catches 8 of 8 missed large steady accounts because the synthetic large steady accounts are, by construction, the top decile. On real data its hit rate is unknown.
+- **Capacity doesn't bind in the replay** (0 account-days held in 1.5). With 12 owners and 400 accounts that is expected. In production, capacity needs a real number from Sales before launch.
+- **The coverage audit is circular here.** It catches 7 of 7 missed large steady accounts because the synthetic large steady accounts are, by construction, the top decile. On real data its hit rate is unknown.
+- **Seasonality.** A 30-vs-30 velocity reads a quarter-end, a budget cycle or an annual event as growth. The synthetic world has no seasonality, so nothing here tests it. Real data would need year-over-year or same-period baselines.
+- **Merge runs before capacity.** If capacity holds the winning product account, its sibling on the same CRM account still says "merged". Nothing is delivered either way, so the seller isn't affected, but the reason shown is less precise than it should be.

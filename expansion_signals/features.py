@@ -23,7 +23,19 @@ def compute_features(
     created_on: date,
     data_loaded_through: date | None = None,
 ) -> AccountFeatures:
-    events = [e for e in events if e.account_id == account_id and e.day <= as_of]
+    seen: set[str] = set()
+    unique = []
+    for e in events:
+        if e.account_id != account_id or e.day > as_of:
+            continue
+        if e.event_id is not None:
+            # Warehouse loads can replay a partition. Without this, a duplicated
+            # month doubles consumption and fires the value family on its own.
+            if e.event_id in seen:
+                continue
+            seen.add(e.event_id)
+        unique.append(e)
+    events = unique
     start_30 = as_of - timedelta(days=29)
     start_60 = as_of - timedelta(days=59)
 

@@ -6,6 +6,8 @@
 
 A reference implementation for turning product-usage patterns into explainable, measurable sales actions.
 
+**What's here:** a deterministic Python engine that separates *how strong* a usage signal is, *how far to trust it* and *whether a seller can act on it*. Around it: seller feedback that changes later decisions, a replay that measures precision and recall, and an audit of the accounts it misses. Testing against the ways the system breaks found 14 problems in the engine and 2 in its own evaluation, across three rounds. They're written up in the [postmortem](docs/FAILURE_POSTMORTEM.md).
+
 ![Signal Inspector: a HIGH-strength, HIGH-confidence account suppressed because a seller already has an open opportunity](docs/assets/demo-already-engaged.png)
 
 ## Why this exists
@@ -26,7 +28,7 @@ This repo is a small, deterministic system for that problem, tested against the 
 1. **Behavior is evidence, not intent.** Signals describe what changed. Every one carries the evidence behind it.
 2. **Signal strength is not actionability.** Strength, confidence and actionability are computed separately. A HIGH-strength, HIGH-confidence account with an open opportunity is suppressed, not ranked first.
 3. **Deterministic rules decide; AI only summarizes.** The model runs after the decision, sees only aggregates, and can fail without changing anything.
-4. **Seller attention is scarce.** One open signal per account episode, one per CRM account, a weekly cap per owner, and reasons for everything held back.
+4. **Seller attention is scarce.** One open signal per account episode (unanswered means quiet, not resent), one per CRM account, a weekly cap per owner, and reasons for everything held back.
 5. **Measure the misses.** Recall and a false-negative audit sit next to precision, plus a coverage audit for accounts that signals structurally can't see.
 6. **Feedback changes the system.** Dismissals are read on the next evaluation, with reason-specific effects.
 
@@ -71,28 +73,30 @@ A daily replay of 400 synthetic accounts over 11 weeks, with simulated seller re
 
 | Precision (60d) | Recall (60d) | Signals delivered | Median lead time |
 |---|---|---|---|
-| 0.21 | 0.34 of 38 | 112 | 16 days |
+| 0.20 per signal, 0.24 per account | 0.34 of 38 | 106 | 16 days |
 
-The outcomes come from archetypes I wrote, so these numbers show that the measurement works, not that the signals predict anything in a real business. What the replay did do was find bugs that unit tests missed. [EVALUATION.md](docs/EVALUATION.md) has the method, the per-version results and the miss causes.
+About one in five signals is followed by an expansion within 60 days, and the system finds about a third of the expansions Sales wasn't already working. The outcomes come from archetypes I wrote, and the simulated sellers don't know the outcomes, so these numbers show that the measurement works, not that the signals predict anything in a real business. What the replay did do was find bugs that unit tests missed. [EVALUATION.md](docs/EVALUATION.md) has the method, the per-version results and the miss causes.
 
 ## Design decisions that changed as I built it
 
-Each of these is in the commit history and the [postmortem](docs/FAILURE_POSTMORTEM.md).
+Each one came from a failing test or a replay result. The [postmortem](docs/FAILURE_POSTMORTEM.md) has the evidence; the commit history shows the order.
 
 - **"Recent CRM activity suppresses" became "recent *two-way* conversation suppresses".** A sequence email nobody answered was blocking signals as "already engaged".
 - **"Has an owner" became "has an active owner".** The inactive-owner field was in the v1 model and never checked.
 - **Confidence stopped being used as a control.** v1 lowered confidence for short history, and MEDIUM confidence still surfaces, so 17 signals went to large, flat accounts during their onboarding ramp. Anything that must stop a signal is now a rule.
 - **Engine memory reads only earlier days**, because replaying a day changed its own answer. That exposed a second bug: the signal key included the logic version, so a re-run under new logic could now duplicate. The key became account-day.
 - **The unit of decision moved from product account to CRM account.** Two workspaces for one company sent two signals to one seller.
-- **A signal became an episode, not a daily alert.** An unanswered signal was being resent every cooldown period.
+- **A signal became an episode, not a daily alert.** An unanswered signal was being resent every cooldown period. My first fix only stretched that period from 14 to 21 days, which a reviewer caught. Silence now counts as a soft "no".
 - **Volume control moved from the strength rule to seller capacity.** Requiring two families looked careful, but in the replay it cut recall from 0.42 to 0.16 with no precision gain.
 - **Signup-week setup stopped counting as adoption.**
+- **"Up to a day late is fine" became "any missing partition holds".** The first late day was being decided on a partial window.
+- **The evaluation's simulated sellers stopped seeing the future.** They had only ever dismissed accounts that weren't going to expand, which made dismissals look free.
 
 ## Run it
 
 ```bash
 pip install -r requirements-dev.txt   # pytest only; the engine is standard library
-make test                             # 37 tests, including the adversarial cases
+make test                             # 40 tests, including the adversarial cases
 make eval                             # regenerate evals/REPORT.md
 make demo                             # serve the demo on http://localhost:8000/web/
 ```

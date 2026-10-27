@@ -1,13 +1,13 @@
 # Decision logic
 
-Logic version **1.4.0**. Every threshold lives in [`expansion_signals/config.py`](../expansion_signals/config.py). None of them are fitted; they are starting points for a backtest to replace.
+Logic version **1.5.0**. Every threshold lives in [`expansion_signals/config.py`](../expansion_signals/config.py). None of them are fitted; they are starting points for a backtest to replace.
 
 The engine answers three separate questions and only then makes a decision:
 
 | Question | Output | Changes the decision? |
 |---|---|---|
 | How much expansion behavior is there? | **Signal strength**: NONE / LOW / MEDIUM / HIGH | Yes: NONE never surfaces |
-| How far should we trust that reading? | **Confidence**: LOW / MEDIUM / HIGH, with reasons | Only LOW blocks. MEDIUM is shown to the seller, not enforced |
+| How far should we trust that reading? | **Confidence**: LOW / MEDIUM / HIGH, with reasons | Only LOW blocks. Otherwise it ranks signals for capacity and is shown to the seller |
 | Can this owner usefully act today? | **Actionability**: rules passed and blocking reasons | Yes: any blocking rule stops the signal |
 
 Keeping these apart is the point. Atlas Software in the demo is HIGH strength, HIGH confidence and not actionable, because a seller already has an open opportunity there. A single score would rank it at the top of the list.
@@ -36,12 +36,12 @@ Confidence starts at HIGH and is lowered, with a stated reason, by:
 
 | Condition | Lowers to |
 |---|---|
-| Warehouse data more than 1 day behind | LOW |
+| Warehouse partition for the day is missing | LOW |
 | Under 45 days of account history | MEDIUM |
 | More than 80% of consumption from one user | MEDIUM |
 | CRM account matched by domain, not by ID | MEDIUM |
 
-Only LOW blocks a signal. The postmortem explains why: an earlier version relied on MEDIUM confidence to stop bad signals, and it didn't. Anything that must stop a signal is a rule in strength or actionability, not a confidence downgrade.
+Only LOW blocks a signal, and in 1.5 the only source of LOW is stale data, which the freshness rule already holds. So confidence doesn't decide anything on its own. It orders signals when an owner is over capacity, and it tells the seller how far to trust what they're reading. That's deliberate: an earlier version relied on MEDIUM confidence to stop bad signals, and it didn't (see the postmortem). Anything that must stop a signal is a rule in strength or actionability.
 
 ## 3. Actionability
 
@@ -54,9 +54,10 @@ Rules run in this order. The first failure decides the outcome; every rule is st
 | The owner is an active user | ROUTE |
 | No open opportunity | SUPPRESS |
 | No two-way conversation (meeting, reply, connected call, demo) in the last 14 days. Unknown activity types count as two-way | SUPPRESS |
-| Warehouse data current (lag ≤ 1 day) | HOLD |
+| Warehouse partition for the day is loaded (no gap) | HOLD |
 | Seller feedback on the last signal (below) | SUPPRESS, ROUTE or HOLD |
 | The last signal isn't still open and unanswered (21-day expiry) | HOLD |
+| An expired, unanswered signal stays quiet until 90 days after it was sent, unless strength rises | SUPPRESS |
 | Not surfaced in the last 14 days | HOLD |
 | Not snoozed | HOLD |
 
@@ -76,7 +77,7 @@ then, across the whole run:
   owner over weekly capacity                  -> overflow HOLD, ranked by strength, confidence, families
 ```
 
-`LOW` strength exists in the type, but no rule produces it in 1.4.0. Until 1.2.0, a single MEDIUM family produced LOW (monitor only). See the postmortem for why that changed.
+`LOW` strength and `MONITOR` exist in the types, but no rule produces them in 1.5.0. Until 1.2.0, a single MEDIUM family produced LOW (monitor only). See the postmortem for why that changed.
 
 ## 5. Seller feedback
 
@@ -91,7 +92,7 @@ Feedback is stored with the signal record, and the next evaluation reads it.
 | Dismiss: already engaged | SUPPRESS for 30 days. Also a CRM data-quality finding: the CRM didn't show the engagement |
 | Dismiss: wrong owner | ROUTE until the CRM owner changes, or a reviewer clears it |
 | Dismiss: bad data | HOLD until a reviewer clears it (`SignalStore.clear`). There is no review queue UI in this repo |
-| No response | The signal stays the one open signal for 21 days, then expires. It is not resent on top of itself |
+| No response | The signal stays the one open signal for 21 days. After that, silence counts as a soft "no": no new signal until 90 days after the first, unless strength rises. Until 1.5 an expired signal was resent every 21 days |
 
 ## 6. Where AI is allowed
 

@@ -37,7 +37,8 @@ def to_markdown(r: dict) -> str:
         f"- Logic version: `{r['logic_version']}`; replay window {r['window'][0]} to {r['window'][1]}",
         f"- Accounts: {r['accounts']}; signals delivered: {r['signals_delivered']} "
         f"({r['accounts_surfaced']} unique accounts)",
-        f"- Precision (expanded within 60 days of a delivered signal): **{r['precision_60d']}**",
+        f"- Precision (expanded within 60 days of a delivered signal): **{r['precision_60d']}** per signal, "
+        f"{r['precision_60d_by_account']} per account",
         f"- Recall (eligible expansions surfaced in the 60 days before): **{r['recall_60d']}** "
         f"of {r['eligible_expansions']}",
         f"- Expansions excluded because Sales already had an open opportunity: {r['expansions_already_engaged']}",

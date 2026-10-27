@@ -1,7 +1,7 @@
 {
-  "account_days_held_for_capacity": 1,
-  "account_days_held_for_late_data": 30,
-  "account_days_suppressed_by_dismissal": 484,
+  "account_days_held_for_capacity": 0,
+  "account_days_held_for_late_data": 60,
+  "account_days_suppressed_by_dismissal": 401,
   "accounts": 400,
   "accounts_surfaced": 68,
   "by_archetype": {
@@ -9,7 +9,7 @@
       "accounts": 33,
       "caught": 2,
       "eligible_expansions": 7,
-      "signals_delivered": 34
+      "signals_delivered": 29
     },
     "flat_small": {
       "accounts": 169,
@@ -21,7 +21,7 @@
       "accounts": 39,
       "caught": 9,
       "eligible_expansions": 14,
-      "signals_delivered": 55
+      "signals_delivered": 53
     },
     "slow_grower": {
       "accounts": 74,
@@ -45,25 +45,25 @@
       "accounts": 28,
       "caught": 2,
       "eligible_expansions": 4,
-      "signals_delivered": 23
+      "signals_delivered": 24
     }
   },
   "coverage_audit": {
     "consumption_30d_cutoff": 12018.64,
-    "contains_missed_large_steady": 8,
+    "contains_missed_large_steady": 7,
     "listed": 33,
     "listed_that_expanded": 10,
-    "missed_large_steady": 8
+    "missed_large_steady": 7
   },
   "decision_days": {
-    "HOLD": 947,
+    "HOLD": 951,
     "NO_SIGNAL": 28657,
     "ROUTE": 445,
-    "SUPPRESS": 639,
-    "SURFACE": 112
+    "SUPPRESS": 641,
+    "SURFACE": 106
   },
   "dismiss_reasons": {
-    "not_a_fit": 43
+    "not_a_fit": 34
   },
   "eligible_expansions": 38,
   "expansions_already_engaged": 1,
@@ -71,11 +71,12 @@
     "2026-06-10",
     "2026-06-11"
   ],
-  "logic_version": "1.4.0",
+  "logic_version": "1.5.0",
   "median_lead_time_days": 16,
   "miss_causes": {
-    "large steady account, no change to detect": 8,
-    "no behavior change": 13,
+    "behavior moved but stayed below every threshold": 9,
+    "large steady account, no change to detect": 7,
+    "no measurable change": 5,
     "ownership or identity unresolved": 4
   },
   "misses": [
@@ -94,19 +95,19 @@
     {
       "account_id": "acct_0069",
       "archetype": "whale",
-      "cause": "no behavior change",
+      "cause": "no measurable change",
       "expanded_on": "2026-06-10"
     },
     {
       "account_id": "acct_0075",
       "archetype": "breadth_adopter",
-      "cause": "no behavior change",
+      "cause": "behavior moved but stayed below every threshold",
       "expanded_on": "2026-05-23"
     },
     {
       "account_id": "acct_0085",
       "archetype": "slow_grower",
-      "cause": "no behavior change",
+      "cause": "behavior moved but stayed below every threshold",
       "expanded_on": "2026-06-25"
     },
     {
@@ -124,13 +125,13 @@
     {
       "account_id": "acct_0119",
       "archetype": "steady_large",
-      "cause": "large steady account, no change to detect",
+      "cause": "behavior moved but stayed below every threshold",
       "expanded_on": "2026-05-16"
     },
     {
       "account_id": "acct_0129",
       "archetype": "slow_grower",
-      "cause": "no behavior change",
+      "cause": "behavior moved but stayed below every threshold",
       "expanded_on": "2026-06-02"
     },
     {
@@ -142,7 +143,7 @@
     {
       "account_id": "acct_0156",
       "archetype": "breadth_adopter",
-      "cause": "no behavior change",
+      "cause": "behavior moved but stayed below every threshold",
       "expanded_on": "2026-06-26"
     },
     {
@@ -160,43 +161,43 @@
     {
       "account_id": "acct_0204",
       "archetype": "whale",
-      "cause": "no behavior change",
+      "cause": "no measurable change",
       "expanded_on": "2026-05-25"
     },
     {
       "account_id": "acct_0230",
       "archetype": "breadth_adopter",
-      "cause": "no behavior change",
+      "cause": "behavior moved but stayed below every threshold",
       "expanded_on": "2026-06-29"
     },
     {
       "account_id": "acct_0231",
       "archetype": "org_expander",
-      "cause": "no behavior change",
+      "cause": "behavior moved but stayed below every threshold",
       "expanded_on": "2026-05-18"
     },
     {
       "account_id": "acct_0242",
       "archetype": "flat_small",
-      "cause": "no behavior change",
+      "cause": "no measurable change",
       "expanded_on": "2026-05-07"
     },
     {
       "account_id": "acct_0249",
       "archetype": "breadth_adopter",
-      "cause": "no behavior change",
+      "cause": "no measurable change",
       "expanded_on": "2026-06-30"
     },
     {
       "account_id": "acct_0254",
       "archetype": "flat_small",
-      "cause": "no behavior change",
+      "cause": "no measurable change",
       "expanded_on": "2026-06-14"
     },
     {
       "account_id": "acct_0263",
       "archetype": "org_expander",
-      "cause": "no behavior change",
+      "cause": "behavior moved but stayed below every threshold",
       "expanded_on": "2026-05-29"
     },
     {
@@ -214,7 +215,7 @@
     {
       "account_id": "acct_0368",
       "archetype": "slow_grower",
-      "cause": "no behavior change",
+      "cause": "behavior moved but stayed below every threshold",
       "expanded_on": "2026-06-11"
     },
     {
@@ -230,15 +231,16 @@
       "expanded_on": "2026-06-24"
     }
   ],
-  "precision_60d": 0.214,
+  "precision_60d": 0.198,
+  "precision_60d_by_account": 0.235,
   "recall_60d": 0.342,
   "signal_status": {
-    "ACTIONED": 11,
-    "DISMISSED": 43,
-    "OPEN": 42,
-    "SNOOZED": 16
+    "ACTIONED": 32,
+    "DISMISSED": 34,
+    "OPEN": 30,
+    "SNOOZED": 10
   },
-  "signals_delivered": 112,
+  "signals_delivered": 106,
   "window": [
     "2026-04-15",
     "2026-06-30"

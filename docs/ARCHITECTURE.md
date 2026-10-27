@@ -53,9 +53,9 @@ If the source ever became intraday, the engine wouldn't change. `run_daily` woul
 |---|---|---|
 | `account_id` | Product account (workspace, org, tenant) | Not the CRM ID; identity resolution maps it |
 | `as_of` | The day the features describe | |
-| `data_loaded_through` | Latest complete partition | More than 1 day behind → HOLD, never decide on a partial window |
+| `data_loaded_through` | Latest complete partition | Earlier than `as_of` → HOLD, never decide on a partial window |
 | `account_age_days` | Days since the product account was created | Value family needs ≥ 60 |
-| `consumption_30d`, `consumption_prior_30d` | Value in the product's unit, two windows | |
+| `consumption_30d`, `consumption_prior_30d` | Value in the product's own unit (currency, credits, API calls), two windows. The 4,000 floor in config is in that unit | Rows are deduplicated on `event_id`, because a replayed partition would otherwise double a month |
 | `largest_event_share_30d` | Biggest single event / 30-day total | Spike check |
 | `top_user_share_30d` | Biggest single user's share of 30-day consumption | Concentration check |
 | `users_total`, `users_added_30d`, `active_users_30d` | Seats | Additions exclude the first 7 days of the account |
