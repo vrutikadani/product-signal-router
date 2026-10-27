@@ -1,0 +1,245 @@
+{
+  "account_days_held_for_capacity": 1,
+  "account_days_held_for_late_data": 30,
+  "account_days_suppressed_by_dismissal": 484,
+  "accounts": 400,
+  "accounts_surfaced": 68,
+  "by_archetype": {
+    "breadth_adopter": {
+      "accounts": 33,
+      "caught": 2,
+      "eligible_expansions": 7,
+      "signals_delivered": 34
+    },
+    "flat_small": {
+      "accounts": 169,
+      "caught": 0,
+      "eligible_expansions": 2,
+      "signals_delivered": 0
+    },
+    "org_expander": {
+      "accounts": 39,
+      "caught": 9,
+      "eligible_expansions": 14,
+      "signals_delivered": 55
+    },
+    "slow_grower": {
+      "accounts": 74,
+      "caught": 0,
+      "eligible_expansions": 3,
+      "signals_delivered": 0
+    },
+    "spike": {
+      "accounts": 23,
+      "caught": 0,
+      "eligible_expansions": 0,
+      "signals_delivered": 0
+    },
+    "steady_large": {
+      "accounts": 34,
+      "caught": 0,
+      "eligible_expansions": 8,
+      "signals_delivered": 0
+    },
+    "whale": {
+      "accounts": 28,
+      "caught": 2,
+      "eligible_expansions": 4,
+      "signals_delivered": 23
+    }
+  },
+  "coverage_audit": {
+    "contains_missed_large_steady": 8,
+    "listed": 33,
+    "listed_that_expanded": 10,
+    "missed_large_steady": 8
+  },
+  "decision_days": {
+    "HOLD": 947,
+    "NO_SIGNAL": 28657,
+    "ROUTE": 445,
+    "SUPPRESS": 639,
+    "SURFACE": 112
+  },
+  "dismiss_reasons": {
+    "not_a_fit": 43
+  },
+  "eligible_expansions": 38,
+  "expansions_already_engaged": 1,
+  "late_warehouse_days": [
+    "2026-06-10",
+    "2026-06-11"
+  ],
+  "logic_version": "1.4.0",
+  "median_lead_time_days": 16,
+  "miss_causes": {
+    "large steady account, no change to detect": 8,
+    "no behavior change": 13,
+    "ownership or identity unresolved": 4
+  },
+  "misses": [
+    {
+      "account_id": "acct_0000",
+      "archetype": "steady_large",
+      "cause": "large steady account, no change to detect",
+      "expanded_on": "2026-06-22"
+    },
+    {
+      "account_id": "acct_0007",
+      "archetype": "org_expander",
+      "cause": "ownership or identity unresolved",
+      "expanded_on": "2026-05-15"
+    },
+    {
+      "account_id": "acct_0069",
+      "archetype": "whale",
+      "cause": "no behavior change",
+      "expanded_on": "2026-06-10"
+    },
+    {
+      "account_id": "acct_0075",
+      "archetype": "breadth_adopter",
+      "cause": "no behavior change",
+      "expanded_on": "2026-05-23"
+    },
+    {
+      "account_id": "acct_0085",
+      "archetype": "slow_grower",
+      "cause": "no behavior change",
+      "expanded_on": "2026-06-25"
+    },
+    {
+      "account_id": "acct_0097",
+      "archetype": "org_expander",
+      "cause": "ownership or identity unresolved",
+      "expanded_on": "2026-06-12"
+    },
+    {
+      "account_id": "acct_0105",
+      "archetype": "steady_large",
+      "cause": "large steady account, no change to detect",
+      "expanded_on": "2026-05-27"
+    },
+    {
+      "account_id": "acct_0119",
+      "archetype": "steady_large",
+      "cause": "large steady account, no change to detect",
+      "expanded_on": "2026-05-16"
+    },
+    {
+      "account_id": "acct_0129",
+      "archetype": "slow_grower",
+      "cause": "no behavior change",
+      "expanded_on": "2026-06-02"
+    },
+    {
+      "account_id": "acct_0139",
+      "archetype": "steady_large",
+      "cause": "large steady account, no change to detect",
+      "expanded_on": "2026-06-14"
+    },
+    {
+      "account_id": "acct_0156",
+      "archetype": "breadth_adopter",
+      "cause": "no behavior change",
+      "expanded_on": "2026-06-26"
+    },
+    {
+      "account_id": "acct_0163",
+      "archetype": "steady_large",
+      "cause": "large steady account, no change to detect",
+      "expanded_on": "2026-05-09"
+    },
+    {
+      "account_id": "acct_0169",
+      "archetype": "steady_large",
+      "cause": "large steady account, no change to detect",
+      "expanded_on": "2026-06-09"
+    },
+    {
+      "account_id": "acct_0204",
+      "archetype": "whale",
+      "cause": "no behavior change",
+      "expanded_on": "2026-05-25"
+    },
+    {
+      "account_id": "acct_0230",
+      "archetype": "breadth_adopter",
+      "cause": "no behavior change",
+      "expanded_on": "2026-06-29"
+    },
+    {
+      "account_id": "acct_0231",
+      "archetype": "org_expander",
+      "cause": "no behavior change",
+      "expanded_on": "2026-05-18"
+    },
+    {
+      "account_id": "acct_0242",
+      "archetype": "flat_small",
+      "cause": "no behavior change",
+      "expanded_on": "2026-05-07"
+    },
+    {
+      "account_id": "acct_0249",
+      "archetype": "breadth_adopter",
+      "cause": "no behavior change",
+      "expanded_on": "2026-06-30"
+    },
+    {
+      "account_id": "acct_0254",
+      "archetype": "flat_small",
+      "cause": "no behavior change",
+      "expanded_on": "2026-06-14"
+    },
+    {
+      "account_id": "acct_0263",
+      "archetype": "org_expander",
+      "cause": "no behavior change",
+      "expanded_on": "2026-05-29"
+    },
+    {
+      "account_id": "acct_0266",
+      "archetype": "breadth_adopter",
+      "cause": "ownership or identity unresolved",
+      "expanded_on": "2026-06-10"
+    },
+    {
+      "account_id": "acct_0347",
+      "archetype": "steady_large",
+      "cause": "large steady account, no change to detect",
+      "expanded_on": "2026-06-29"
+    },
+    {
+      "account_id": "acct_0368",
+      "archetype": "slow_grower",
+      "cause": "no behavior change",
+      "expanded_on": "2026-06-11"
+    },
+    {
+      "account_id": "acct_0380",
+      "archetype": "org_expander",
+      "cause": "ownership or identity unresolved",
+      "expanded_on": "2026-06-30"
+    },
+    {
+      "account_id": "acct_0398",
+      "archetype": "steady_large",
+      "cause": "large steady account, no change to detect",
+      "expanded_on": "2026-06-24"
+    }
+  ],
+  "precision_60d": 0.214,
+  "recall_60d": 0.342,
+  "signal_status": {
+    "ACTIONED": 11,
+    "DISMISSED": 43,
+    "OPEN": 42,
+    "SNOOZED": 16
+  },
+  "signals_delivered": 112,
+  "window": [
+    "2026-04-15",
+    "2026-06-30"
+  ]
+}

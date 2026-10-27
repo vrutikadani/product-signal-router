@@ -34,6 +34,11 @@ class InMemoryWarehouse:
     rows: list[ProductEvent]
     loaded: date
 
+    def __post_init__(self):
+        self._by_account: dict[str, list[ProductEvent]] = {}
+        for e in self.rows:
+            self._by_account.setdefault(e.account_id, []).append(e)
+
     def account_ids(self):
         return sorted(self.created)
 
@@ -41,7 +46,7 @@ class InMemoryWarehouse:
         return self.created[account_id]
 
     def events(self, account_id, through):
-        return [e for e in self.rows if e.account_id == account_id and e.day <= through]
+        return [e for e in self._by_account.get(account_id, []) if e.day <= through and e.day <= self.loaded]
 
     def loaded_through(self):
         return self.loaded

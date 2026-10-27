@@ -15,7 +15,7 @@ from typing import Optional
 
 from .config import ONE_WAY_ACTIVITY, Config
 from .models import AccountFeatures, Band, CrmContext, Decision
-from .state import DISMISSED, SNOOZED, SignalStore
+from .state import DISMISSED, OPEN, SNOOZED, SignalStore
 
 Rule = tuple[bool, str, Optional[Decision]]
 _ORDER = [Band.NONE, Band.LOW, Band.MEDIUM, Band.HIGH]
@@ -68,6 +68,10 @@ def check_rules(f: AccountFeatures, crm: CrmContext, store: SignalStore, today: 
                 label = (f"seller dismissed {age}d ago ({last.dismiss_reason}); "
                          f"respected for {window}d unless strength rises above {last.strength}")
                 rules.append((not active, label, Decision.SUPPRESS))
+        elif last.status == OPEN and age < c.open_signal_expiry_days:
+            # A signal is an episode, not a daily alert: if the seller has not
+            # answered the last one, do not send another on top of it.
+            rules.append((False, f"open signal from {age}d ago still waiting on the seller", Decision.HOLD))
         else:
             rules.append((age >= c.cooldown_days, f"not surfaced in last {c.cooldown_days} days", Decision.HOLD))
             snoozed = last.status == SNOOZED and last.snoozed_until is not None and last.snoozed_until > today

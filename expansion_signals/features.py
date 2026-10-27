@@ -13,6 +13,9 @@ from typing import Iterable
 from .models import AccountFeatures, ProductEvent
 
 
+ONBOARDING_DAYS = 7   # users and features set up in the first week are signup, not expansion
+
+
 def compute_features(
     account_id: str,
     events: Iterable[ProductEvent],
@@ -36,10 +39,13 @@ def compute_features(
     top_user = max(by_user.values(), default=0.0)
 
     users = {e.user_id for e in events if e.kind == "user_added"}
-    users_30 = {e.user_id for e in events if e.kind == "user_added" and e.day >= start_30}
+    after_onboarding = created_on + timedelta(days=ONBOARDING_DAYS)
+    users_30 = {e.user_id for e in events
+                if e.kind == "user_added" and e.day >= start_30 and e.day >= after_onboarding}
     active = {e.user_id for e in events if e.kind in ("login", "consumption") and e.day >= start_30 and e.user_id}
     feats = {e.feature for e in events if e.kind == "feature_enabled"}
-    feats_30 = {e.feature for e in events if e.kind == "feature_enabled" and e.day >= start_30}
+    feats_30 = {e.feature for e in events
+                if e.kind == "feature_enabled" and e.day >= start_30 and e.day >= after_onboarding}
 
     loaded = data_loaded_through or max((e.day for e in events), default=as_of)
 

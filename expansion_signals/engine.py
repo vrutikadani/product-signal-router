@@ -51,6 +51,7 @@ def evaluate(
         rules_passed=passed,
         decision=decision,
         crm_account_id=crm.crm_account_id,
+        owner_id=crm.owner_id,
         seller_notes=notes,
     )
     return attach_context(ev, summarizer)

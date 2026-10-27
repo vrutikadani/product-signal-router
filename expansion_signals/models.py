@@ -102,6 +102,7 @@ class Evaluation:
     rules_passed: list[str]
     decision: Decision
     crm_account_id: Optional[str] = None
+    owner_id: Optional[str] = None
     seller_notes: list[str] = field(default_factory=list)
     ai_context: Optional[dict] = None
 

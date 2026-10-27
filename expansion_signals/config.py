@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-LOGIC_VERSION = "1.1.0"
+LOGIC_VERSION = "1.4.0"
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,8 @@ class Config:
     # actionability
     recent_activity_days: int = 14
     cooldown_days: int = 14
+    open_signal_expiry_days: int = 21
+    seller_capacity_per_week: int = 5    # new signals per owner per rolling 7 days; set from a capacity review    # an unanswered signal stays the one open signal until it expires
     dismiss_not_a_fit_days: int = 90     # unless strength rises above the band it was dismissed at
     dismiss_bad_timing_days: int = 30
     dismiss_already_engaged_days: int = 30

@@ -23,6 +23,12 @@ def value_family(f: AccountFeatures, c: Config) -> SignalFamilyResult:
     ev = [f"consumption 30d {f.consumption_30d:,.0f} vs prior {f.consumption_prior_30d:,.0f}"]
     if v is not None:
         ev.append(f"velocity {v:.1f}x")
+    if f.account_age_days < 60:
+        # The prior window starts before the account existed, so "growth" is the
+        # onboarding ramp. v1 only lowered confidence here, and MEDIUM confidence
+        # still surfaces, so every new large account looked like an expansion.
+        ev.append(f"account is {f.account_age_days} days old; velocity needs two full 30-day windows")
+        return SignalFamilyResult("value", False, Band.NONE, ev)
     if v is not None and f.largest_event_share_30d > c.max_single_event_share:
         # Recompute without the single largest event. If the growth disappears,
         # it was one transaction, not a trend.
@@ -60,8 +66,11 @@ def evaluate_strength(f: AccountFeatures, c: Config) -> tuple[list[SignalFamilyR
         return fams, Band.NONE
     if len(fired) >= 2:
         return fams, Band.HIGH
-    # one family alone is at most MEDIUM: a single dimension of growth is common and often noise
-    return fams, (Band.MEDIUM if fired[0].band == Band.HIGH else Band.LOW)
+    # One family alone is MEDIUM. Until 1.2 a single MEDIUM family was LOW (monitor
+    # only). The replay showed that rule cut recall from 0.42 to 0.16 without
+    # improving precision, so volume is now controlled by seller capacity
+    # (pipeline.py), not by understating strength.
+    return fams, Band.MEDIUM
 
 
 def evaluate_confidence(f: AccountFeatures, crm_match_method: str, today: date, c: Config) -> tuple[Band, list[str]]:

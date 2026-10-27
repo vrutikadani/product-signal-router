@@ -30,6 +30,7 @@ class SignalRecord:
     strength: str
     confidence: str
     crm_account_id: Optional[str] = None
+    owner_id: Optional[str] = None
     status: str = OPEN
     snoozed_until: Optional[date] = None
     dismiss_reason: Optional[str] = None
@@ -53,7 +54,7 @@ class SignalStore:
         if key in self.records:
             return self.records[key], False
         rec = SignalRecord(key, ev.account_id, ev.as_of, ev.logic_version,
-                           ev.strength.value, ev.confidence.value, ev.crm_account_id)
+                           ev.strength.value, ev.confidence.value, ev.crm_account_id, ev.owner_id)
         rec.history.append((ev.as_of.isoformat(), "SURFACED"))
         self.records[key] = rec
         return rec, True
@@ -70,6 +71,10 @@ class SignalStore:
         recs = [r for r in self.for_account(account_id, crm_account_id)
                 if before is None or r.as_of < before]
         return recs[-1] if recs else None
+
+    def delivered_to_owner(self, owner_id: str, start: date, end_exclusive: date) -> int:
+        return sum(1 for r in self.records.values()
+                   if r.owner_id == owner_id and start <= r.as_of < end_exclusive)
 
     def get(self, key: str) -> Optional[SignalRecord]:
         return self.records.get(key)

@@ -6,7 +6,7 @@ make signals arrive faster than the data underneath them changes.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from .adapters import CrmSource, SellerSink, WarehouseSource
@@ -54,6 +54,7 @@ def run_daily(
         result.evaluations.append(ev)
 
     _one_signal_per_crm_account(result.evaluations, store)
+    _apply_seller_capacity(result.evaluations, store, as_of, config)
 
     for ev in result.evaluations:
         if ev.decision == Decision.SURFACE:
@@ -94,3 +95,28 @@ def _one_signal_per_crm_account(evals: list[Evaluation], store: SignalStore) -> 
             ev.actionable = False
             ev.ai_context = {"used": False, "reason": "merged into another signal; AI only runs on surfaced signals"}
             ev.blocking_reasons.insert(0, f"merged into {winner.account_id} (same CRM account {crm_id})")
+
+
+def _apply_seller_capacity(evals: list[Evaluation], store: SignalStore, as_of: date, config: Config) -> None:
+    """Each owner gets at most N new signals per rolling week. Today's candidates
+    are ranked (strength, confidence, number of families, account id) and the
+    overflow is held, visibly, instead of being delivered and ignored. Signals
+    already recorded for today (a replay) keep their slot."""
+    by_owner: dict[str, list[Evaluation]] = {}
+    for ev in evals:
+        if ev.decision == Decision.SURFACE and ev.owner_id:
+            by_owner.setdefault(ev.owner_id, []).append(ev)
+    week_start = as_of - timedelta(days=6)
+    for owner, group in by_owner.items():
+        used = store.delivered_to_owner(owner, week_start, as_of)
+        replayed = [ev for ev in group if store.get(store.key_for(ev))]
+        fresh = sorted((ev for ev in group if ev not in replayed),
+                       key=lambda e: (-_RANK[e.strength], -_RANK[e.confidence],
+                                      -sum(f.fired for f in e.families), e.account_id))
+        room = max(0, config.seller_capacity_per_week - used - len(replayed))
+        for ev in fresh[room:]:
+            ev.decision = Decision.HOLD
+            ev.actionable = False
+            ev.blocking_reasons.insert(0, f"owner {owner} is at capacity "
+                                          f"({config.seller_capacity_per_week} new signals per 7 days)")
+            ev.ai_context = {"used": False, "reason": "held for capacity; AI only runs on surfaced signals"}
