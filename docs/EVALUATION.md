@@ -26,7 +26,7 @@
 | Logic | Change | Delivered | Precision | Recall | Notes |
 |---|---|---|---|---|---|
 | 1.1.0 | Adversarial fixes | 89 | 0.169 | 0.237 | 17 signals to steady large accounts on their onboarding ramp |
-| 1.2.0 | No velocity under 60 days; open episodes not resent | 63 | 0.175 | 0.158 | Recall falls: two "catches" had been accidental |
+| 1.2.0 | No velocity under 60 days; open episodes not re-sent | 63 | 0.175 | 0.158 | Recall falls: two "catches" had been accidental |
 | (sensitivity) | One family is enough | 175 | 0.171 | 0.421 | Same precision, 2.7x recall |
 | 1.3.0 | One family = MEDIUM; weekly seller capacity | 165 | 0.176 | 0.421 | 30 signals to flat small accounts: signup-week users counted |
 | 1.4.0 | Exclude signup week from adoption and breadth | 112 | 0.214 | 0.342 | Simulated sellers still saw the outcome |

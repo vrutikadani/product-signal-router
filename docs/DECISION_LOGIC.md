@@ -92,7 +92,7 @@ Feedback is stored with the signal record, and the next evaluation reads it.
 | Dismiss: already engaged | SUPPRESS for 30 days. Also a CRM data-quality finding: the CRM didn't show the engagement |
 | Dismiss: wrong owner | ROUTE until the CRM owner changes, or a reviewer clears it |
 | Dismiss: bad data | HOLD until a reviewer clears it (`SignalStore.clear`). There is no review queue UI in this repo |
-| No response | The signal stays the one open signal for 21 days. After that, silence counts as a soft "no": no new signal until 90 days after the first, unless strength rises. Until 1.5 an expired signal was resent every 21 days |
+| No response | The signal stays the one open signal for 21 days. After that, silence counts as a soft "no": no new signal until 90 days after the first, unless strength rises. Until 1.5 an expired signal was re-sent every 21 days |
 
 ## 6. Where AI is allowed
 

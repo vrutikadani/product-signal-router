@@ -217,7 +217,7 @@ function feedbackHtml(sig, decision) {
     </div>`;
   const intro = sig ? `<p class="small">Signal <code>${esc(sig.key)}</code>, status <b>${esc(sig.status)}</b>${sig.dismiss_reason ? ` (${esc(sig.dismiss_reason)})` : ""}.</p>`
     : `<p class="muted small">${decision === "SURFACE" ? "" : "No signal was sent, so there is nothing to respond to."}</p>`;
-  return intro + hist + buttons + time + `<p class="muted small">Feedback is stored with the signal. The next evaluation reads it: a dismissal suppresses for a reason-specific window unless strength rises, wrong owner routes, bad data holds, and a signal nobody answers goes quiet instead of being resent.</p>`;
+  return intro + hist + buttons + time + `<p class="muted small">Feedback is stored with the signal. The next evaluation reads it: a dismissal suppresses for a reason-specific window unless strength rises, wrong owner routes, bad data holds, and a signal nobody answers goes quiet instead of being re-sent.</p>`;
 }
 
 function wireFeedback() {

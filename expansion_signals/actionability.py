@@ -75,7 +75,7 @@ def check_rules(f: AccountFeatures, crm: CrmContext, store: SignalStore, today: 
             rules.append((False, f"open signal from {age}d ago still waiting on the seller", Decision.HOLD))
         elif last.status in (OPEN, EXPIRED):
             # Expired without an answer. Until 1.5 this fell through to the
-            # cooldown rule, so the same signal was resent every 21 days.
+            # cooldown rule, so the same signal was re-sent every 21 days.
             rose = _ORDER.index(strength) > _ORDER.index(Band(last.strength))
             quiet = age < c.unanswered_quiet_days and not rose
             rules.append((not quiet, f"signal from {age}d ago expired unanswered; quiet for "

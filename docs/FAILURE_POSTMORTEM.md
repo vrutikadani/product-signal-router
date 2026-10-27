@@ -67,7 +67,7 @@ I asked a reviewer with no context on the build to read the code as a Staff Engi
 
 | Case | 1.4.0 behavior | Fix (1.5.0) |
 |---|---|---|
-| A signal nobody answers | Held for 21 days, then fell through to the cooldown rule and was resent, every 21 days, forever. My episode fix had only moved the period from 14 days to 21 | After expiry, silence counts as a soft "no": quiet until 90 days after the first signal, unless strength rises |
+| A signal nobody answers | Held for 21 days, then fell through to the cooldown rule and was re-sent, every 21 days, forever. My episode fix had only moved the period from 14 days to 21 | After expiry, silence counts as a soft "no": quiet until 90 days after the first signal, unless strength rises |
 | The warehouse replays a partition (duplicate rows) | `event_id` was in the model and never used. A duplicated month doubled consumption and fired the value family on its own | Rows are deduplicated on `event_id` in feature computation |
 | The day's partition is one day late | `lag <= 1` passed, so the first late day was decided on a window missing its last day. In the replay, every late-data HOLD was on the second late day, and two signals went out on the first | Any missing partition holds |
 

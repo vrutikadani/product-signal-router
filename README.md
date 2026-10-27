@@ -6,13 +6,13 @@
 
 A reference implementation for turning product-usage patterns into explainable, measurable sales actions.
 
-**What's here:** a deterministic Python engine that separates *how strong* a usage signal is, *how far to trust it* and *whether a seller can act on it*. Around it: seller feedback that changes later decisions, a replay that measures precision and recall, and an audit of the accounts it misses. Testing against the ways the system breaks found 14 problems in the engine and 2 in its own evaluation, across three rounds. They're written up in the [postmortem](docs/FAILURE_POSTMORTEM.md).
+**What's here:** a deterministic Python engine that separates *how strong* a usage signal is, *how far to trust it* and *whether a seller can act on it*. Around it: seller feedback that changes later decisions, a replay that measures precision and recall, and an audit of the accounts it misses. Adversarial replay and independent review exposed failures in suppression, ownership, episode state, account identity and the evaluator itself. The [postmortem](docs/FAILURE_POSTMORTEM.md) documents what broke and how the fixes changed the design.
 
 ![Signal Inspector: a HIGH-strength, HIGH-confidence account suppressed because a seller already has an open opportunity](docs/assets/demo-already-engaged.png)
 
 ## Why this exists
 
-Self-serve accounts sign up, adopt and grow without talking to anyone. Some of them would buy more, sooner, with a seller's help. The behavior that hints at it (more spend, more people, more of the product) sits in the product warehouse. The people who could act on it work in the CRM.
+Self-serve accounts can adopt and grow without ever entering a sales-assisted motion. Some of them would buy more, sooner, with a seller's help. The behavior that hints at it (more spend, more people, more of the product) sits in the product warehouse. The people who could act on it work in the CRM.
 
 Joining the two is easy. The hard parts:
 
@@ -28,7 +28,7 @@ This repo is a small, deterministic system for that problem, tested against the 
 1. **Behavior is evidence, not intent.** Signals describe what changed. Every one carries the evidence behind it.
 2. **Signal strength is not actionability.** Strength, confidence and actionability are computed separately. A HIGH-strength, HIGH-confidence account with an open opportunity is suppressed, not ranked first.
 3. **Deterministic rules decide; AI only summarizes.** The model runs after the decision, sees only aggregates, and can fail without changing anything.
-4. **Seller attention is scarce.** One open signal per account episode (unanswered means quiet, not resent), one per CRM account, a weekly cap per owner, and reasons for everything held back.
+4. **Seller attention is scarce.** One open signal per account episode (an unanswered signal stays quiet rather than being re-sent), one per CRM account, a weekly cap per owner, and reasons for everything held back.
 5. **Measure the misses.** Recall and a false-negative audit sit next to precision, plus a coverage audit for accounts that signals structurally can't see.
 6. **Feedback changes the system.** Dismissals are read on the next evaluation, with reason-specific effects.
 
@@ -67,9 +67,11 @@ Six fictional accounts, each a scenario. Every input is editable, and **Evaluate
 
 The **Signal Inspector** shows the product evidence, CRM context, every eligibility rule passed or failed, what the AI was given and whether it ran, the decision, and the signal's feedback history. Dismiss a signal, move the clock forward 20 days, and it stays suppressed; move it 95 days and it can surface again.
 
-## Evaluation (synthetic)
+## Replay harness: synthetic validation, not a performance benchmark
 
-A daily replay of 400 synthetic accounts over 11 weeks, with simulated seller responses and two late warehouse days:
+A daily replay of 400 synthetic accounts over 11 weeks, with simulated seller responses and two late warehouse days.
+
+**These metrics validate the evaluation pipeline and expose failure modes. They are not claims about real-world signal performance.**
 
 | Precision (60d) | Recall (60d) | Signals delivered | Median lead time |
 |---|---|---|---|
@@ -86,7 +88,7 @@ Each one came from a failing test or a replay result. The [postmortem](docs/FAIL
 - **Confidence stopped being used as a control.** v1 lowered confidence for short history, and MEDIUM confidence still surfaces, so 17 signals went to large, flat accounts during their onboarding ramp. Anything that must stop a signal is now a rule.
 - **Engine memory reads only earlier days**, because replaying a day changed its own answer. That exposed a second bug: the signal key included the logic version, so a re-run under new logic could now duplicate. The key became account-day.
 - **The unit of decision moved from product account to CRM account.** Two workspaces for one company sent two signals to one seller.
-- **A signal became an episode, not a daily alert.** An unanswered signal was being resent every cooldown period. My first fix only stretched that period from 14 to 21 days, which a reviewer caught. Silence now counts as a soft "no".
+- **A signal became an episode, not a daily alert.** An unanswered signal was being re-sent every cooldown period. My first fix only stretched that period from 14 to 21 days, which a reviewer caught. Silence now counts as a soft "no".
 - **Volume control moved from the strength rule to seller capacity.** Requiring two families looked careful, but in the replay it cut recall from 0.42 to 0.16 with no precision gain.
 - **Signup-week setup stopped counting as adoption.**
 - **"Up to a day late is fine" became "any missing partition holds".** The first late day was being decided on a partial window.
