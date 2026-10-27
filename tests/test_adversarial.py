@@ -160,3 +160,36 @@ def test_merged_sibling_carries_no_ai_context():
     r = run_daily(TODAY, wh2, cr, SignalStore(), ListSink(), summarizer=TemplateSummarizer())
     loser = [e for e in r.evaluations if e.decision == Decision.SUPPRESS][0]
     assert loser.ai_context["used"] is False
+
+
+# found in an independent review after 1.4.0 ------------------------------
+
+def test_unanswered_signal_is_not_resent_after_expiry():
+    store = SignalStore()
+    start = TODAY - timedelta(days=70)
+    surfaced_days = []
+    for i in range(71):
+        d = start + timedelta(days=i)
+        ev = evaluate(feats(as_of=d, data_loaded_through=d), crm(), store, d)
+        if ev.decision == Decision.SURFACE:
+            store.record_surfaced(ev)
+            surfaced_days.append(i)
+    assert surfaced_days == [0]
+
+
+def test_duplicate_warehouse_rows_are_counted_once():
+    from expansion_signals.features import compute_features
+    created = TODAY - timedelta(days=120)
+    rows = daily_events("a", TODAY - timedelta(days=59), 60, 100, ["u1"])
+    dupes = [ProductEvent(e.account_id, e.day, e.kind, e.user_id, e.amount, event_id=e.event_id)
+             for e in rows[-30:]]
+    f = compute_features("a", rows + dupes, TODAY, created)
+    assert f.consumption_30d == 3000 and f.consumption_velocity == 1.0
+
+
+def test_first_late_day_holds():
+    wh, cr = _world()
+    late = InMemoryWarehouse(wh.created, [e for e in wh.rows if e.day <= TODAY - timedelta(days=1)],
+                             TODAY - timedelta(days=1))
+    r = run_daily(TODAY, late, cr, SignalStore(), ListSink())
+    assert r.evaluations[0].decision == Decision.HOLD
