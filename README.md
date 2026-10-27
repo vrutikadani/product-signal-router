@@ -28,7 +28,7 @@ This repo is a small, deterministic system for that problem, tested against the 
 1. **Behavior is evidence, not intent.** Signals describe what changed. Every one carries the evidence behind it.
 2. **Signal strength is not actionability.** Strength, confidence and actionability are computed separately. A HIGH-strength, HIGH-confidence account with an open opportunity is suppressed, not ranked first.
 3. **Deterministic rules decide; AI only summarizes.** The model runs after the decision, sees only aggregates, and can fail without changing anything.
-4. **Seller attention is scarce.** One open signal per account episode (an unanswered signal stays quiet rather than being re-sent), one per CRM account, a weekly cap per owner, and reasons for everything held back.
+4. **Seller attention is scarce.** One open signal per account episode (an unanswered signal stays quiet rather than being repeatedly re-sent), one per CRM account, a weekly cap per owner, and reasons for everything held back.
 5. **Measure the misses.** Recall and a false-negative audit sit next to precision, plus a coverage audit for accounts that signals structurally can't see.
 6. **Feedback changes the system.** Dismissals are read on the next evaluation, with reason-specific effects.
 
