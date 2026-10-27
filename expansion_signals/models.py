@@ -95,6 +95,7 @@ class Evaluation:
     logic_version: str
     families: list[SignalFamilyResult]
     strength: Band
+    strength_reason: str
     confidence: Band
     confidence_reasons: list[str]
     actionable: bool

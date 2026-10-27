@@ -166,13 +166,14 @@ def measure(accounts: list[SyntheticAccount], rp: Replay, start: date, end: date
     dismissal_respected = sum(1 for h in rp.by_account.values() for _, dec, br in h
                               if dec == "SUPPRESS" and any("seller dismissed" in b for b in br))
 
-    coverage = coverage_audit(accounts, events, end, set(first_surface))
+    coverage, cutoff_30d = coverage_audit(accounts, events, end, set(first_surface))
     steady_missed = {m["account_id"] for m in misses if m["cause"].startswith("large steady")}
 
     return {
         "logic_version": LOGIC_VERSION,
         "coverage_audit": {
             "listed": len(coverage),
+            "consumption_30d_cutoff": round(cutoff_30d, 2),
             "contains_missed_large_steady": len(steady_missed & set(coverage)),
             "missed_large_steady": len(steady_missed),
             "listed_that_expanded": sum(1 for a in coverage if idx[a].expanded_on),
@@ -200,7 +201,7 @@ def measure(accounts: list[SyntheticAccount], rp: Replay, start: date, end: date
 
 
 def coverage_audit(accounts: list[SyntheticAccount], events, as_of: date, surfaced: set[str],
-                   top_share: float = 0.1) -> list[str]:
+                   top_share: float = 0.1) -> tuple[list[str], float]:
     """The false-negative audit you can run before any outcome exists.
 
     Signals detect change, so a large account that is already large and stays
@@ -215,6 +216,7 @@ def coverage_audit(accounts: list[SyntheticAccount], events, as_of: date, surfac
         if e.kind == "consumption" and start <= e.day <= as_of:
             vol[e.account_id] += e.amount
     ranked = sorted(vol, key=lambda a: -vol[a])[: max(1, int(len(accounts) * top_share))]
+    cutoff = vol[ranked[-1]] if ranked else 0.0
     idx = {a.account_id: a for a in accounts}
     out = []
     for acct in ranked:
@@ -223,4 +225,4 @@ def coverage_audit(accounts: list[SyntheticAccount], events, as_of: date, surfac
         if acct in surfaced or c.open_opportunity or talking:
             continue
         out.append(acct)
-    return out
+    return out, cutoff

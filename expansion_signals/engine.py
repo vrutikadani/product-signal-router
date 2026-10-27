@@ -8,7 +8,7 @@ from .actionability import check_rules
 from .ai_context import Summarizer, attach_context
 from .config import LOGIC_VERSION, Config
 from .models import AccountFeatures, Band, CrmContext, Decision, Evaluation
-from .signals import evaluate_confidence, evaluate_strength
+from .signals import evaluate_confidence, evaluate_strength, strength_reason
 from .state import SignalStore
 
 
@@ -44,6 +44,7 @@ def evaluate(
         logic_version=LOGIC_VERSION,
         families=families,
         strength=strength,
+        strength_reason=strength_reason(families),
         confidence=confidence,
         confidence_reasons=conf_reasons,
         actionable=decision == Decision.SURFACE,

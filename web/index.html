@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Self-Serve Expansion Signals</title>
+<meta name="description" content="Reference implementation: product usage to explainable, measurable seller decisions. Fictional accounts, synthetic data.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23176b5b'/%3E%3Cpath d='M3 11l3-3 2 2 5-5' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"></span>
+    <div>
+      <div class="title">Self-Serve Expansion Signal System</div>
+      <div class="sub">Product usage → qualified signal → CRM context → seller decision → feedback</div>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-view="evaluate" role="tab">Evaluate an account</button>
+    <button class="tab" data-view="evaluation" role="tab">Evaluation</button>
+    <a class="tab" href="https://github.com/vrutikadani/self-serve-expansion-signals">Code</a>
+  </nav>
+  <span id="mode" class="pill">loading engine…</span>
+</header>
+<div class="notice">Fictional accounts and synthetic data. The decision is made by the same Python engine the tests run, loaded in your browser.</div>
+
+<main id="view-evaluate" class="layout">
+  <aside class="side">
+    <div class="side-h">Scenarios</div>
+    <div id="scenarios"></div>
+    <p class="side-note">Each scenario only fills the controls. Change anything and press <b>Evaluate</b>.</p>
+  </aside>
+
+  <section class="controls panel">
+    <div class="acct-row">
+      <h2 id="acct-name">Account</h2>
+      <span id="acct-day" class="pill mono"></span>
+    </div>
+    <p id="acct-blurb" class="muted small"></p>
+
+    <form id="form" autocomplete="off">
+      <fieldset>
+        <legend>Product behavior <span class="muted">(warehouse, daily)</span></legend>
+        <label><span>Account age <span class="unit">days</span></span><input type="number" name="account_age_days" min="0" step="1"></label>
+        <label><span>Consumption, last 30 days</span><input type="number" name="consumption_30d" min="0" step="100"></label>
+        <label><span>Consumption velocity <span class="unit">× prior 30 days</span></span><input type="number" name="velocity" min="0" step="0.1"></label>
+        <label><span>Users / seats</span><input type="number" name="users_total" min="0" step="1"></label>
+        <label><span>Users added, last 30 days</span><input type="number" name="users_added_30d" min="0" step="1"></label>
+        <label><span>Usage from the top user <span class="unit">share</span></span><input type="number" name="top_user_share" min="0" max="1" step="0.05"></label>
+        <label><span>Product breadth <span class="unit">features in use</span></span><input type="number" name="features_total" min="0" step="1"></label>
+        <label><span>Features added, last 30 days</span><input type="number" name="features_added_30d" min="0" step="1"></label>
+        <details>
+          <summary>Data quality</summary>
+          <label><span>Largest single transaction <span class="unit">share of 30d</span></span><input type="number" name="largest_event_share" min="0" max="1" step="0.05"></label>
+          <label><span>Warehouse lag <span class="unit">days</span></span><input type="number" name="data_lag_days" min="0" step="1"></label>
+        </details>
+      </fieldset>
+      <fieldset>
+        <legend>CRM context</legend>
+        <label>Recent CRM activity
+          <select name="activity">
+            <option value="none">None</option>
+            <option value="sequence_step">Sequence step (one-way)</option>
+            <option value="email_sent">Email sent (one-way)</option>
+            <option value="reply">Reply from the customer</option>
+            <option value="meeting">Meeting held</option>
+          </select>
+        </label>
+        <label><span>Activity was <span class="unit">days ago</span></span><input type="number" name="activity_days_ago" min="0" step="1"></label>
+        <label class="check"><input type="checkbox" name="open_opportunity"> Open opportunity</label>
+        <label>Ownership resolution
+          <select name="ownership">
+            <option value="resolved">Resolved: one CRM account by ID, active owner</option>
+            <option value="domain_match">Resolved by domain only</option>
+            <option value="owner_inactive">Owner has left (inactive user)</option>
+            <option value="unowned">No owner</option>
+            <option value="two_matches">Two CRM accounts match</option>
+            <option value="no_match">No CRM match</option>
+          </select>
+        </label>
+      </fieldset>
+      <fieldset>
+        <legend>AI</legend>
+        <label class="check"><input type="checkbox" name="ai" checked> Seller summary (runs only after a SURFACE decision)</label>
+      </fieldset>
+      <button type="submit" id="evaluate" class="btn primary" disabled>Evaluate</button>
+    </form>
+  </section>
+
+  <section class="inspector panel" aria-live="polite">
+    <div class="insp-h">
+      <h2>Signal Inspector</h2>
+      <span class="muted small" id="insp-version"></span>
+    </div>
+    <div id="inspector" class="empty">Pick a scenario or press Evaluate.</div>
+  </section>
+</main>
+
+<main id="view-evaluation" class="eval-view" hidden>
+  <div id="evaluation" class="panel">Loading report…</div>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

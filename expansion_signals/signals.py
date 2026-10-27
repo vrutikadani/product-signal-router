@@ -44,7 +44,9 @@ def value_family(f: AccountFeatures, c: Config) -> SignalFamilyResult:
 
 
 def adoption_family(f: AccountFeatures, c: Config) -> SignalFamilyResult:
-    ev = [f"{f.users_added_30d} users added in 30d ({f.users_total} total, {f.active_users_30d} active)"]
+    n = f.users_added_30d
+    ev = [f"{n} user{'s' if n != 1 else ''} added in 30d after signup week "
+          f"({f.users_total} total, {f.active_users_30d} active)"]
     if f.users_added_30d < c.adoption_users_added_min:
         return SignalFamilyResult("adoption", False, Band.NONE, ev)
     band = Band.HIGH if f.users_added_30d >= c.adoption_users_added_high else Band.MEDIUM
@@ -52,11 +54,21 @@ def adoption_family(f: AccountFeatures, c: Config) -> SignalFamilyResult:
 
 
 def breadth_family(f: AccountFeatures, c: Config) -> SignalFamilyResult:
-    ev = [f"{f.features_added_30d} products/features enabled in 30d ({f.features_total} total)"]
+    n = f.features_added_30d
+    ev = [f"{n} feature{'s' if n != 1 else ''} enabled in 30d after signup week ({f.features_total} in use)"]
     if f.features_added_30d < c.breadth_features_added_min:
         return SignalFamilyResult("breadth", False, Band.NONE, ev)
     band = Band.HIGH if f.features_total >= c.breadth_features_total_high else Band.MEDIUM
     return SignalFamilyResult("breadth", True, band, ev)
+
+
+def strength_reason(fams: list[SignalFamilyResult]) -> str:
+    n = sum(x.fired for x in fams)
+    if n == 0:
+        return "no family fired"
+    if n == 1:
+        return "1 of 3 families fired; a single family is MEDIUM at most"
+    return f"{n} of 3 families fired; two or more independent families is HIGH"
 
 
 def evaluate_strength(f: AccountFeatures, c: Config) -> tuple[list[SignalFamilyResult], Band]:

@@ -49,6 +49,7 @@
     }
   },
   "coverage_audit": {
+    "consumption_30d_cutoff": 12018.64,
     "contains_missed_large_steady": 8,
     "listed": 33,
     "listed_that_expanded": 10,
