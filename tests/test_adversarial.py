@@ -130,6 +130,17 @@ def test_wrong_owner_feedback_routes_until_fixed():
     rec, _ = store.record_surfaced(evaluate(feats(as_of=d0, data_loaded_through=d0), crm(), store, d0))
     store.dismiss(rec.key, d0, "wrong_owner")
     assert evaluate(feats(), crm(), store, TODAY).decision == Decision.ROUTE
+    assert evaluate(feats(), crm(owner_id="rep_8"), store, TODAY).decision == Decision.SURFACE
+
+
+def test_bad_data_holds_until_cleared():
+    store = SignalStore()
+    d0 = TODAY - timedelta(days=20)
+    rec, _ = store.record_surfaced(evaluate(feats(as_of=d0, data_loaded_through=d0), crm(), store, d0))
+    store.dismiss(rec.key, d0, "bad_data")
+    assert evaluate(feats(), crm(), store, TODAY).decision == Decision.HOLD
+    store.clear(rec.key, TODAY)
+    assert evaluate(feats(), crm(), store, TODAY).decision == Decision.SURFACE
 
 
 def test_spike_with_real_adoption_still_counts_adoption():

@@ -29,7 +29,7 @@ ARCHETYPES = {
     "slow_grower":     (0.20, 40, 1.5, 1, 1, 0.40, 0.08, False),
     "flat_small":      (0.42, 25, 1.0, 0, 0, 0.50, 0.02, False),
 }
-FEATURES = ["cards", "invoicing", "reimbursements", "integrations", "api", "approvals", "travel"]
+FEATURES = ["core", "integrations", "api", "automations", "approvals", "reporting", "sso"]
 
 
 @dataclass

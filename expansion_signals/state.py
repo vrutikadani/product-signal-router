@@ -91,6 +91,12 @@ class SignalStore:
         r.snoozed_until = on + timedelta(days=days)
         r.history.append((on.isoformat(), f"SNOOZED {days}d"))
 
+    def clear(self, key: str, on: date) -> None:
+        """RevOps reviewed a 'bad data' or 'wrong owner' dismissal and resolved it."""
+        r = self.records[key]
+        r.status = EXPIRED
+        r.history.append((on.isoformat(), "CLEARED by review"))
+
     def dismiss(self, key: str, on: date, reason: str) -> None:
         if reason not in DISMISS_REASONS:
             raise ValueError(f"unknown dismiss reason {reason!r}")

@@ -59,7 +59,8 @@ def check_rules(f: AccountFeatures, crm: CrmContext, store: SignalStore, today: 
                       "bad_timing": c.dismiss_bad_timing_days,
                       "already_engaged": c.dismiss_already_engaged_days}.get(last.dismiss_reason)
             if last.dismiss_reason == "wrong_owner":
-                rules.append((False, "seller reported wrong owner; waiting for reassignment", Decision.ROUTE))
+                reassigned = crm.owner_id is not None and crm.owner_id != last.owner_id
+                rules.append((reassigned, "seller reported wrong owner; waiting for reassignment", Decision.ROUTE))
             elif last.dismiss_reason == "bad_data":
                 rules.append((False, "seller reported bad data; held for review", Decision.HOLD))
             elif window is not None:
