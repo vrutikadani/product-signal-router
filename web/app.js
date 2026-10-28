@@ -7,32 +7,32 @@ let current = null;      // scenario id
 let coverageCutoff = 1e18;
 
 const SCENARIOS = [
-  { id: "expanding", account: "Acme Robotics", title: "Expanding organization",
+  { id: "adoption", account: "Acme Robotics", title: "High-confidence adoption",
     blurb: "Spend, people and products all moving at once. The easy case: strong, trusted and actionable.",
     v: { account_age_days: 120, consumption_30d: 18000, velocity: 2.6, users_total: 14, users_added_30d: 6,
          top_user_share: 0.25, features_total: 4, features_added_30d: 2, open_opportunity: false,
          ownership: "resolved", activity: "none" } },
-  { id: "whale", account: "Northstar Labs", title: "Consumption whale",
+  { id: "consumption", account: "Northstar Labs", title: "High-consumption account",
     blurb: "Large, fast-growing usage, almost all from one person. Strong on value, weak as evidence of an organization buying in.",
     v: { account_age_days: 150, consumption_30d: 42000, velocity: 3.4, users_total: 3, users_added_30d: 0,
          top_user_share: 0.94, features_total: 1, features_added_30d: 0, open_opportunity: false,
          ownership: "resolved", activity: "none" } },
-  { id: "early", account: "Meridian Health", title: "Early organizational adoption",
+  { id: "early", account: "Meridian Health", title: "Early multi-user adoption",
     blurb: "Five weeks old. Too new for spend velocity to mean anything, but seven people joined after signup week.",
     v: { account_age_days: 34, consumption_30d: 2600, velocity: 4.0, users_total: 10, users_added_30d: 7,
          top_user_share: 0.3, features_total: 2, features_added_30d: 1, open_opportunity: false,
          ownership: "resolved", activity: "none" } },
-  { id: "engaged", account: "Atlas Software", title: "Already engaged",
+  { id: "engaged", account: "Atlas Software", title: "Active-sales-engagement suppression",
     blurb: "Every product signal is strong. A seller is already working an opportunity, so another alert would only add noise.",
     v: { account_age_days: 200, consumption_30d: 26000, velocity: 2.4, users_total: 22, users_added_30d: 5,
          top_user_share: 0.2, features_total: 5, features_added_30d: 2, open_opportunity: true,
          ownership: "resolved", activity: "meeting", activity_days_ago: 3 } },
-  { id: "unowned", account: "Harbor Logistics", title: "Ownership unresolved",
+  { id: "unowned", account: "Harbor Logistics", title: "Unresolved ownership",
     blurb: "Strong signal on an account whose CRM owner left the company. Nobody can act until routing is fixed.",
     v: { account_age_days: 140, consumption_30d: 15000, velocity: 2.2, users_total: 9, users_added_30d: 4,
          top_user_share: 0.35, features_total: 3, features_added_30d: 2, open_opportunity: false,
          ownership: "owner_inactive", activity: "none" } },
-  { id: "fn", account: "Pinecrest Analytics", title: "False negative",
+  { id: "missed", account: "Pinecrest Analytics", title: "Missed-signal audit",
     blurb: "One of the largest accounts in the book, flat month over month. Signals detect change, so this never fires. The coverage audit is what catches it.",
     v: { account_age_days: 400, consumption_30d: 65000, velocity: 1.03, users_total: 40, users_added_30d: 1,
          top_user_share: 0.18, features_total: 3, features_added_30d: 0, open_opportunity: false,
@@ -66,7 +66,7 @@ async function boot() {
       py.FS.writeFile("/home/pyodide/" + f, text);
     }
     py.runPython("import sys; sys.path.insert(0, '/home/pyodide')");
-    api = py.pyimport("expansion_signals.demo_api");
+    api = py.pyimport("product_signal_router.demo_api");
     $("#mode").textContent = "engine loaded";
     $("#mode").classList.add("ok");
     $("#evaluate").disabled = false;
@@ -132,7 +132,7 @@ const DECISION_TEXT = {
   HOLD: "Strong, but not actionable today",
   SUPPRESS: "Strong, but someone is already on it, or the seller said no",
   ROUTE: "Strong, but nobody can act until ownership or identity is fixed",
-  NO_SIGNAL: "No expansion behavior detected",
+  NO_SIGNAL: "No qualifying change in product behavior",
 };
 const tone = (d) => ({ SURFACE: "ok", MONITOR: "idle", HOLD: "warn", SUPPRESS: "idle", ROUTE: "warn", NO_SIGNAL: "idle" }[d]);
 const bandTone = (b) => ({ HIGH: "ok", MEDIUM: "warn", LOW: "bad", NONE: "idle" }[b]);
@@ -167,7 +167,7 @@ function renderInspector(r) {
       <div class="d-text">${esc(DECISION_TEXT[r.decision])}</div>
     </div>
     <div class="trio">
-      <div><div class="k">Signal strength</div><div class="v tag ${bandTone(r.strength)}">${r.strength}</div><div class="muted small">how much expansion behavior</div></div>
+      <div><div class="k">Signal strength</div><div class="v tag ${bandTone(r.strength)}">${r.strength}</div><div class="muted small">how much qualifying behavior</div></div>
       <div><div class="k">Confidence</div><div class="v tag ${bandTone(r.confidence)}">${r.confidence}</div><div class="muted small">how far to trust the reading</div></div>
       <div><div class="k">Actionable</div><div class="v tag ${r.actionable ? "ok" : "idle"}">${r.actionable ? "YES" : "NO"}</div><div class="muted small">can this owner act today</div></div>
     </div>
@@ -192,7 +192,7 @@ function renderInspector(r) {
 }
 
 function famName(f) {
-  return { value: "Usage / value expansion", adoption: "Organizational adoption", breadth: "Product breadth" }[f] || f;
+  return { value: "Usage / value growth", adoption: "Organizational adoption", breadth: "Product breadth" }[f] || f;
 }
 
 function feedbackHtml(sig, decision) {
@@ -252,22 +252,22 @@ function renderReport(r) {
   const pct = (x) => (x == null ? "n/a" : Math.round(x * 100) + "%");
   const miss = Object.entries(r.miss_causes).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v}</td></tr>`).join("");
   const arch = Object.entries(r.by_archetype).map(([k, v]) =>
-    `<tr><td>${esc(k.replace("_", " "))}</td><td class="num">${v.accounts}</td><td class="num">${v.signals_delivered}</td><td class="num">${v.eligible_expansions}</td><td class="num">${v.caught}</td></tr>`).join("");
+    `<tr><td>${esc(k.replace("_", " "))}</td><td class="num">${v.accounts}</td><td class="num">${v.signals_delivered}</td><td class="num">${v.eligible_conversions}</td><td class="num">${v.caught}</td></tr>`).join("");
   const ca = r.coverage_audit;
   $("#evaluation").innerHTML = `
-    <h1>Evaluation on synthetic history</h1>
-    <p class="muted">A daily replay of ${r.accounts} synthetic accounts from ${r.window[0]} to ${r.window[1]}, with simulated seller responses and two late warehouse days. Outcomes come from the synthetic archetypes, so this shows the measurement working. It does not show that these signals predict expansion anywhere real.</p>
+    <h1>Replay harness: synthetic validation</h1>
+    <p class="muted">A daily replay of ${r.accounts} synthetic accounts from ${r.window[0]} to ${r.window[1]}, with simulated seller responses and two late warehouse days. Outcomes come from the synthetic archetypes, so this shows the measurement working. It does not show that these signals predict outcomes anywhere real.</p>
     <div class="stats">
-      <div><div class="k">Precision</div><div class="big">${pct(r.precision_60d)}</div><div class="muted small">signals followed by expansion within 60 days</div></div>
-      <div><div class="k">Recall</div><div class="big">${pct(r.recall_60d)}</div><div class="muted small">of ${r.eligible_expansions} expansions Sales was not already on</div></div>
+      <div><div class="k">Precision</div><div class="big">${pct(r.precision_60d)}</div><div class="muted small">signals followed by a conversion within 60 days</div></div>
+      <div><div class="k">Recall</div><div class="big">${pct(r.recall_60d)}</div><div class="muted small">of ${r.eligible_conversions} conversions Sales was not already on</div></div>
       <div><div class="k">Signals delivered</div><div class="big">${r.signals_delivered}</div><div class="muted small">to ${r.accounts_surfaced} distinct accounts</div></div>
-      <div><div class="k">Median lead time</div><div class="big">${r.median_lead_time_days ?? "n/a"}<span class="unit"> days</span></div><div class="muted small">first signal to expansion</div></div>
+      <div><div class="k">Median lead time</div><div class="big">${r.median_lead_time_days ?? "n/a"}<span class="unit"> days</span></div><div class="muted small">first signal to conversion</div></div>
     </div>
-    <h2>Why expansions were missed</h2>
+    <h2>Why conversions were missed</h2>
     <table class="grid"><thead><tr><th>Cause</th><th class="num">Count</th></tr></thead><tbody>${miss}</tbody></table>
     <div class="callout warn"><b>Coverage audit.</b> ${ca.listed} accounts are in the top 10% by consumption with no signal and no live seller conversation. The list contains ${ca.contains_missed_large_steady} of the ${ca.missed_large_steady} large, steady accounts the signals missed. In this synthetic world that is partly by construction; the point is that the audit needs no outcome labels, so it can run from week one.</div>
     <h2>By archetype</h2>
-    <table class="grid"><thead><tr><th>Archetype</th><th class="num">Accounts</th><th class="num">Signals</th><th class="num">Eligible expansions</th><th class="num">Caught</th></tr></thead><tbody>${arch}</tbody></table>
+    <table class="grid"><thead><tr><th>Archetype</th><th class="num">Accounts</th><th class="num">Signals</th><th class="num">Eligible conversions</th><th class="num">Caught</th></tr></thead><tbody>${arch}</tbody></table>
     <h2>Operations</h2>
     <ul>
       <li>Seller responses: ${Object.entries(r.signal_status).map(([k, v]) => `${esc(k)} ${v}`).join(" · ")}</li>

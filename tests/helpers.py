@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from expansion_signals.models import AccountFeatures, CrmContext, ProductEvent
+from product_signal_router.models import AccountFeatures, CrmContext, ProductEvent
 
 TODAY = date(2026, 6, 30)
 

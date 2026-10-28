@@ -1,16 +1,16 @@
 from datetime import date, timedelta
 
-from expansion_signals import Band, Decision, SignalStore, evaluate
-from expansion_signals.adapters import InMemoryCrm, InMemoryWarehouse, ListSink
-from expansion_signals.config import Config
-from expansion_signals.features import compute_features
-from expansion_signals.models import ProductEvent
-from expansion_signals.pipeline import run_daily
+from product_signal_router import Band, Decision, SignalStore, evaluate
+from product_signal_router.adapters import InMemoryCrm, InMemoryWarehouse, ListSink
+from product_signal_router.config import Config
+from product_signal_router.features import compute_features
+from product_signal_router.models import ProductEvent
+from product_signal_router.pipeline import run_daily
 
 from helpers import TODAY, crm, daily_events, feats
 
 
-def test_new_account_ramp_is_not_value_expansion():
+def test_new_account_ramp_is_not_value_growth():
     # 35-day-old account: the prior window is mostly before it existed
     f = feats(account_age_days=35, consumption_30d=50000, consumption_prior_30d=2000,
               users_added_30d=0, features_added_30d=0)

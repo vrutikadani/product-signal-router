@@ -27,6 +27,6 @@ jobs:
           git diff --exit-code web/py_manifest.json
       - name: Engine is standard library only (the browser demo depends on it)
         run: |
-          if grep -rnE "^(from|import) " expansion_signals --include=*.py | grep -vE "from (\.|__future__)|import (json|random|dataclasses|datetime|enum|typing|collections|statistics)|from (dataclasses|datetime|enum|typing|collections|statistics) "; then
+          if grep -rnE "^(from|import) " product_signal_router --include=*.py | grep -vE "from (\.|__future__)|import (json|random|dataclasses|datetime|enum|typing|collections|statistics)|from (dataclasses|datetime|enum|typing|collections|statistics) "; then
             echo "non-stdlib import in engine"; exit 1
           fi

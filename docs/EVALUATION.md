@@ -6,20 +6,21 @@
 
 | Metric | Definition | Why this definition |
 |---|---|---|
-| **Precision (60d)** | Delivered signals where the account expanded within 60 days after delivery, divided by delivered signals. Also reported per account | Per signal is the seller-cost view: a second signal on the same account costs time too. Per account is higher, because accounts that expand tend to get more than one signal |
-| **Recall (60d)** | Expansions surfaced at least once in the 60 days before they happened, divided by *eligible* expansions | |
-| Eligible expansion | Expanded inside the window, and Sales didn't already have an open opportunity | Expansions Sales was already working aren't misses; the system is meant to find the ones nobody was on |
-| **Lead time** | Days from the first signal to the expansion | A signal that arrives after the expansion is worthless, however accurate |
-| **Miss cause** | For every missed expansion, the most specific reason: routed, held, suppressed, behavior that moved but stayed below every threshold (velocity ≥ 1.5x, 2+ users or 1+ feature added), or no measurable change (split by whether the account is in the top 10% by consumption) | A miss you can't explain can't be fixed |
+| **Conversion** | The target outcome the replay measures against. In the synthetic world it is a labeled date per account; in a real deployment it is whatever Sales agrees on (an opportunity created, a plan upgrade) | |
+| **Precision (60d)** | Delivered signals where the account converted within 60 days after delivery, divided by delivered signals. Also reported per account | Per signal is the seller-cost view: a second signal on the same account costs time too. Per account is higher, because accounts that convert tend to get more than one signal |
+| **Recall (60d)** | Conversions surfaced at least once in the 60 days before they happened, divided by *eligible* conversions | |
+| Eligible conversion | Converted inside the window, and Sales didn't already have an open opportunity | Conversions Sales was already working aren't misses; the system is meant to find the ones nobody was on |
+| **Lead time** | Days from the first signal to the conversion | A signal that arrives after the conversion is worthless, however accurate |
+| **Miss cause** | For every missed conversion, the most specific reason: routed, held, suppressed, behavior that moved but stayed below every threshold (velocity ≥ 1.5x, 2+ users or 1+ feature added), or no measurable change (split by whether the account is in the top 10% by consumption) | A miss you can't explain can't be fixed |
 
 ## The synthetic world
 
-- 400 accounts drawn from seven archetypes ([`synthetic.py`](../expansion_signals/synthetic.py)): org expander, breadth adopter, whale, one-transaction spike, steady large, slow grower, flat small.
+- 400 accounts drawn from seven archetypes ([`synthetic.py`](../product_signal_router/synthetic.py)): org adopter, breadth adopter, whale, one-transaction spike, steady large, slow grower, flat small.
 - CRM: about 6% never matched, 5% unowned, 3% with a departed owner, 8% domain-matched, 8% with an open opportunity. Two pairs of product accounts share one CRM account. About 12% of owned accounts receive an unanswered sequence step.
-- Simulated sellers respond 1 to 4 days after delivery, **without knowing the outcome**: 30% work it, 30% dismiss it as "not a fit", 15% snooze, 25% never respond. Before 1.5 the simulated sellers only dismissed accounts that weren't going to expand, so a dismissal could never cost a real expansion. That flattered precision, and an independent review caught it.
+- Simulated sellers respond 1 to 4 days after delivery, **without knowing the outcome**: 30% work it, 30% dismiss it as "not a fit", 15% snooze, 25% never respond. Before 1.5 the simulated sellers only dismissed accounts that weren't going to convert, so a dismissal could never cost a real conversion. That flattered precision, and an independent review caught it.
 - Two warehouse partitions (June 10 and 11) arrive late.
 
-**The limit of this.** I wrote the archetypes and their expansion probabilities, so the replay can't tell you whether these signals predict expansion anywhere real. What it does show is that the measurement works: misses get explained, replay is deterministic, late data is held, dismissals stick, and threshold changes show up as precision and recall moving in opposite directions. It also found real bugs (see the [postmortem](FAILURE_POSTMORTEM.md)).
+**The limit of this.** I wrote the archetypes and their conversion probabilities, so the replay can't tell you whether these signals predict outcomes anywhere real. What it does show is that the measurement works: misses get explained, replay is deterministic, late data is held, dismissals stick, and threshold changes show up as precision and recall moving in opposite directions. It also found real bugs (see the [postmortem](FAILURE_POSTMORTEM.md)).
 
 ## Results by logic version
 
@@ -40,18 +41,18 @@ The 1.1.0 and 1.4.0 reports are saved in [`docs/evidence/`](evidence/). The rows
 |---|---|---|
 | Behavior moved but stayed below every threshold | 9 | Lower thresholds or earlier windows, traded against volume. A backtest question, not a default |
 | Large steady account, no change to detect | 7 | The coverage audit (below) |
-| No measurable change | 5 | Nothing in 30-day product data. Some are expansions that happened before the signal could fire (velocity is late; see the postmortem) |
+| No measurable change | 5 | Nothing in 30-day product data. Some are conversions that happened before the signal could fire (velocity is late; see the postmortem) |
 | Ownership or identity unresolved | 4 | Routing. These are real signals that nobody could act on |
 
 ## Coverage audit
 
-Signals detect *change*. A large account that is already large and stays flat never fires, and those are often the accounts with the most room to expand.
+Signals detect *change*. A large account that is already large and stays flat never fires, and those are often the accounts with the most room to grow.
 
 The coverage audit lists the top 10% of accounts by 30-day consumption that no signal surfaced and that have no open opportunity or two-way seller conversation in the last 30 days. It needs no outcome labels, so it can run from the first week. It is a weekly review for RevOps or sales leadership, not a seller alert. In the replay it lists 33 accounts and contains all 7 large steady accounts the signals missed. As noted above, that's partly by construction.
 
 ## What a real evaluation needs
 
 1. **A backtest on history** before launch: run the logic over the last 6 to 12 months and look at how many accounts would have surfaced each week, how many were already being worked, lead time to the outcome, and how much volume each threshold produces.
-2. **An outcome definition agreed with Sales** (an opportunity created? closed-won expansion? plan upgrade?) and a fixed window.
-3. **Shadow mode**, then a pilot with a randomized delayed-treatment cohort. A fraction of qualifying accounts get their signal after a delay, and organic outreach is never blocked. Without a comparison group, "accounts we surfaced expanded" says nothing about whether surfacing them helped.
+2. **An outcome definition agreed with Sales** (an opportunity created? a closed-won upsell? a plan upgrade?) and a fixed window.
+3. **Shadow mode**, then a pilot with a randomized delayed-treatment cohort. A fraction of qualifying accounts get their signal after a delay, and organic outreach is never blocked. Without a comparison group, "accounts we surfaced converted" says nothing about whether surfacing them helped.
 4. **Disposition coverage.** Precision computed only from signals sellers responded to is biased. Track the share of signals that receive any response, and treat silent expiry as its own signal.

@@ -1,27 +1,30 @@
-# Self-Serve Expansion Signal System
+# Product Signal Router
 
-> Product usage → qualified GTM signal → CRM context → seller action → feedback and measurement.
+**[Live Demo](https://vrutikadani.github.io/product-signal-router/)** · [Architecture](docs/ARCHITECTURE.md) · [Decision Logic](docs/DECISION_LOGIC.md) · [Evaluation](docs/EVALUATION.md)
 
-**[Live Demo](https://vrutikadani.github.io/self-serve-expansion-signals/)** · [Architecture](docs/ARCHITECTURE.md) · [Decision Logic](docs/DECISION_LOGIC.md) · [Evaluation](docs/EVALUATION.md)
+Product Signal Router is a reference implementation for evaluating account-level product events and deciding when they warrant GTM action. It is a Python pipeline. It scores each account against deterministic qualification rules, keeps signal strength separate from evidence confidence, and applies suppression, cooldowns and seller capacity so owners don't get duplicate or low-value alerts. The result is a ranked, auditable action routed to the CRM owner, with seller feedback and a replay harness that audits missed signals.
 
-A reference implementation for turning product-usage patterns into explainable, measurable sales actions.
+Adversarial replay and independent review exposed failures in suppression, ownership, episode state, account identity and the evaluator itself. The [postmortem](docs/FAILURE_POSTMORTEM.md) documents what broke and how the fixes changed the design.
 
-**What's here:** a deterministic Python engine that separates *how strong* a usage signal is, *how far to trust it* and *whether a seller can act on it*. Around it: seller feedback that changes later decisions, a replay that measures precision and recall, and an audit of the accounts it misses. Adversarial replay and independent review exposed failures in suppression, ownership, episode state, account identity and the evaluator itself. The [postmortem](docs/FAILURE_POSTMORTEM.md) documents what broke and how the fixes changed the design.
+![Signal Inspector: a HIGH-strength, HIGH-confidence account suppressed because a seller already has an open opportunity](docs/assets/inspector-suppressed.png)
 
-![Signal Inspector: a HIGH-strength, HIGH-confidence account suppressed because a seller already has an open opportunity](docs/assets/demo-already-engaged.png)
+## How it works
 
-## Why this exists
+| Stage | What happens |
+|---|---|
+| **Input** | Account-level product events from the warehouse (consumption, users and seats, features enabled), rolled up to one row per account per day. CRM context for the same account: identity match, owner, owner status, open opportunity, last activity |
+| **Decision** | Deterministic rules score three signal families into a **strength** band. A separate **confidence** band records how far to trust the evidence. **Actionability** rules check identity, ownership, existing sales engagement, data freshness and the account's signal history |
+| **Output** | One decision per account per day: **SURFACE** (send to the owner, ranked), **HOLD** (stale data, cooldown, open episode, capacity), **SUPPRESS** (already engaged, merged, dismissed), **ROUTE** (identity or ownership unresolved) or **NO_SIGNAL**. Every decision carries the rules it passed and the reason it stopped |
+| **Feedback** | Seller dispositions (worked, snoozed, dismissed with a reason) are stored with the signal and read on the next evaluation. A replay harness measures precision, recall and lead time, explains every missed conversion, and runs a coverage audit for large accounts no signal can see |
 
-Self-serve accounts can adopt and grow without ever entering a sales-assisted motion. Some of them would buy more, sooner, with a seller's help. The behavior that hints at it (more spend, more people, more of the product) sits in the product warehouse. The people who could act on it work in the CRM.
+## Why this is harder than a join
 
-Joining the two is easy. The hard parts:
+Joining product data to CRM records is easy. Deciding what deserves a seller's time is not:
 
-- **Usage isn't intent.** One power user, one large transaction or a team's onboarding month can all look like expansion.
+- **Usage isn't intent.** One power user, one large transaction or a team's onboarding month can all look like growth.
 - **A strong signal can still be the wrong thing to send.** A seller may already be in the account, the owner may have left, or the seller may have said "not a fit" two weeks ago.
 - **Seller attention is the scarce resource.** An alert feed that sellers learn to ignore is worse than no feed.
 - **Misses are invisible** unless you go looking for them.
-
-This repo is a small, deterministic system for that problem, tested against the ways it breaks.
 
 ## Design principles
 
@@ -32,25 +35,35 @@ This repo is a small, deterministic system for that problem, tested against the 
 5. **Measure the misses.** Recall and a false-negative audit sit next to precision, plus a coverage audit for accounts that signals structurally can't see.
 6. **Feedback changes the system.** Dismissals are read on the next evaluation, with reason-specific effects.
 
-## What it does
+## Pipeline
 
 ```
 product events ─► daily features ─► strength (3 families) + confidence
                                             │
-CRM context ──────────────────────► actionability rules ─► one per CRM account ─► seller capacity
+CRM context ──────────────────────► actionability rules ─► one per CRM account ─► owner capacity
                                             │                                          │
-signal store (feedback, episodes) ──────────┘                    SURFACE ─► optional AI note ─► seller
+signal store (feedback, episodes) ──────────┘                    SURFACE ─► optional AI note ─► owner
                                                                  ROUTE   ─► ownership queue
                                                                  HOLD / SUPPRESS ─► recorded with reason
 ```
 
-| Product behavior | Signal family | What it suggests |
+| Product behavior | Signal family | What it indicates |
 |---|---|---|
-| Spend growth, transactions, consumption | Usage / value | Consumption or value expansion |
-| Additional users, seats, departments | Organizational adoption | More of the organization is in |
-| Additional cards, features, workflows, integrations | Product breadth | Operational embedding |
+| Spend, transactions, consumption | Usage / value | Growth in consumption or value |
+| Additional users, seats, departments | Organizational adoption | More of the organization is using it |
+| Additional modules, features, workflows, integrations | Product breadth | Operational embedding |
 
-Decisions: **SURFACE** (send to the owner), **HOLD** (strong but not today: stale data, cooldown, snooze, open episode, capacity), **SUPPRESS** (already engaged, merged, or dismissed), **ROUTE** (identity or ownership unresolved), **NO_SIGNAL**. Full rules: [DECISION_LOGIC.md](docs/DECISION_LOGIC.md).
+The mechanisms that keep this reliable:
+
+- **Account-day deduplication.** A signal's key is the account and the day its features describe, so replaying a day or re-running it under new logic never opens a second signal.
+- **Episodes, not daily alerts.** An open signal is held while it waits on the seller. After it expires unanswered, the account stays quiet unless strength rises.
+- **Identity resolution.** Several product accounts can map to one CRM account. Only one signal per CRM account goes out per day, with a deterministic winner.
+- **Ownership checks.** No owner, an inactive owner or more than one CRM match routes the signal to a queue instead of guessing.
+- **Engagement suppression.** An open opportunity or a recent two-way conversation suppresses. A one-way sequence email does not; it becomes a note for the seller.
+- **Missing-data handling.** If the day's warehouse partition is missing, the account is held, not decided on a partial window. Duplicate warehouse rows are dropped on event ID.
+- **Seller capacity.** Each owner gets at most N new signals per rolling week. The overflow is held and ranked, with the reason recorded.
+
+Full rules and thresholds: [DECISION_LOGIC.md](docs/DECISION_LOGIC.md). Components, data contract and operating controls: [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## The demo
 
@@ -58,18 +71,18 @@ Six fictional accounts, each a scenario. Every input is editable, and **Evaluate
 
 | Scenario | Account | Outcome | What it shows |
 |---|---|---|---|
-| Expanding organization | Acme Robotics | SURFACE · HIGH / HIGH | Spend, people and products moving together |
-| Consumption whale | Northstar Labs | SURFACE · MEDIUM / MEDIUM | Strong usage from one person: value, not yet an organization |
-| Early organizational adoption | Meridian Health | SURFACE · MEDIUM / MEDIUM | Too new for velocity; seven people joined after signup week |
-| Already engaged | Atlas Software | SUPPRESS · HIGH / HIGH | Strongest signal in the set, and the wrong one to send |
-| Ownership unresolved | Harbor Logistics | ROUTE | The owner left; nobody can act until routing is fixed |
-| False negative | Pinecrest Analytics | NO_SIGNAL, coverage-flagged | One of the largest accounts, flat, invisible to signals |
+| High-confidence adoption | Acme Robotics | SURFACE · HIGH / HIGH | Spend, people and products moving together |
+| High-consumption account | Northstar Labs | SURFACE · MEDIUM / MEDIUM | Strong usage from one person: value, not yet an organization |
+| Early multi-user adoption | Meridian Health | SURFACE · MEDIUM / MEDIUM | Too new for velocity; seven people joined after signup week |
+| Active-sales-engagement suppression | Atlas Software | SUPPRESS · HIGH / HIGH | Strongest signal in the set, and the wrong one to send |
+| Unresolved ownership | Harbor Logistics | ROUTE | The owner left; nobody can act until routing is fixed |
+| Missed-signal audit | Pinecrest Analytics | NO_SIGNAL, coverage-flagged | One of the largest accounts, flat, invisible to signals |
 
 The **Signal Inspector** shows the product evidence, CRM context, every eligibility rule passed or failed, what the AI was given and whether it ran, the decision, and the signal's feedback history. Dismiss a signal, move the clock forward 20 days, and it stays suppressed; move it 95 days and it can surface again.
 
 ## Replay harness: synthetic validation, not a performance benchmark
 
-A daily replay of 400 synthetic accounts over 11 weeks, with simulated seller responses and two late warehouse days.
+A daily replay of 400 synthetic accounts over 11 weeks, with simulated seller responses and two late warehouse days. A conversion is the target outcome the replay measures against (in a real deployment, an opportunity or upgrade agreed with Sales).
 
 **These metrics validate the evaluation pipeline and expose failure modes. They are not claims about real-world signal performance.**
 
@@ -77,7 +90,7 @@ A daily replay of 400 synthetic accounts over 11 weeks, with simulated seller re
 |---|---|---|---|
 | 0.20 per signal, 0.24 per account | 0.34 of 38 | 106 | 16 days |
 
-About one in five signals is followed by an expansion within 60 days, and the system finds about a third of the expansions Sales wasn't already working. The outcomes come from archetypes I wrote, and the simulated sellers don't know the outcomes, so these numbers show that the measurement works, not that the signals predict anything in a real business. What the replay did do was find bugs that unit tests missed. [EVALUATION.md](docs/EVALUATION.md) has the method, the per-version results and the miss causes.
+About one in five signals is followed by a conversion within 60 days, and the system finds about a third of the conversions Sales wasn't already working. The outcomes come from archetypes I wrote, and the simulated sellers don't know the outcomes, so these numbers show that the measurement works, not that the signals predict anything in a real business. What the replay did do was find bugs that unit tests missed. [EVALUATION.md](docs/EVALUATION.md) has the method, the per-version results and the miss causes.
 
 ## Design decisions that changed as I built it
 
@@ -92,7 +105,7 @@ Each one came from a failing test or a replay result. The [postmortem](docs/FAIL
 - **Volume control moved from the strength rule to seller capacity.** Requiring two families looked careful, but in the replay it cut recall from 0.42 to 0.16 with no precision gain.
 - **Signup-week setup stopped counting as adoption.**
 - **"Up to a day late is fine" became "any missing partition holds".** The first late day was being decided on a partial window.
-- **The evaluation's simulated sellers stopped seeing the future.** They had only ever dismissed accounts that weren't going to expand, which made dismissals look free.
+- **The evaluation's simulated sellers stopped seeing the future.** They had only ever dismissed accounts that weren't going to convert, which made dismissals look free.
 
 ## Run it
 
@@ -104,19 +117,21 @@ make demo                             # serve the demo on http://localhost:8000/
 ```
 
 ```
-expansion_signals/   engine (features, signals, actionability, pipeline, state, adapters, ai_context, evaluation)
-tests/               unit, adversarial and pipeline tests
-evals/               replay script and the committed report
-web/                 static demo (Pyodide)
-docs/                architecture, decision logic, evaluation, postmortem, evidence
+product_signal_router/   engine (features, signals, actionability, pipeline, state, adapters, ai_context, evaluation)
+tests/                   unit, adversarial and pipeline tests
+evals/                   replay script and the committed report
+web/                     static demo (Pyodide)
+docs/                    architecture, decision logic, evaluation, postmortem, evidence
 ```
+
+CI runs the tests on Python 3.11 to 3.13, fails if the committed evaluation report or demo manifest is stale, and checks that the engine imports only the standard library.
 
 ## Where this pattern applies
 
-Any business where customers adopt before they talk to Sales: PLG SaaS, fintech, developer tools, infrastructure, usage-based products, collaboration software, and marketplaces with business accounts. The objects change and the pattern doesn't: **first-party behavior → account context → actionability → seller action → feedback.**
+Any business where customers adopt the product before they talk to Sales: PLG SaaS, fintech, developer tools, infrastructure, usage-based products, collaboration software, and marketplaces with business accounts. The objects change and the pattern doesn't: **product events → account context → actionability → routed action → feedback.**
 
 ## Not included
 
-There is no real warehouse or CRM connector, no review-queue UI, no shadow mode, kill switch or circuit breaker (these are designed in [ARCHITECTURE.md](docs/ARCHITECTURE.md), not built), and no fitted thresholds. All accounts and data are fictional.
+There is no real warehouse or CRM connector, no review-queue UI, no shadow mode, kill switch or circuit breaker (these are designed in [ARCHITECTURE.md](docs/ARCHITECTURE.md), not built), and no fitted thresholds.
 
-<sub>Synthetic reference implementation. No employer code, customer data or proprietary logic.</sub>
+<sub>Generalized reference implementation built on synthetic data. No employer source code, production customer data or confidential company logic.</sub>

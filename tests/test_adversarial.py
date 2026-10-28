@@ -4,10 +4,10 @@ See docs/FAILURE_POSTMORTEM.md for which of these failed on v1 and what changed.
 """
 from datetime import timedelta
 
-from expansion_signals import Band, Decision, SignalStore, evaluate
-from expansion_signals.adapters import InMemoryCrm, InMemoryWarehouse, ListSink
-from expansion_signals.models import ProductEvent
-from expansion_signals.pipeline import run_daily
+from product_signal_router import Band, Decision, SignalStore, evaluate
+from product_signal_router.adapters import InMemoryCrm, InMemoryWarehouse, ListSink
+from product_signal_router.models import ProductEvent
+from product_signal_router.pipeline import run_daily
 
 from helpers import TODAY, crm, daily_events, feats
 
@@ -79,7 +79,7 @@ def test_dismissal_respected_after_cooldown():
     assert ev.decision == Decision.SUPPRESS
 
 
-# 7. a large, steady account never fires an expansion signal
+# 7. a large, steady account never fires a signal
 def test_large_steady_account_is_invisible_to_signals():
     f = feats(consumption_30d=60000, consumption_prior_30d=58000, users_added_30d=1, features_added_30d=0,
               users_total=40, active_users_30d=35)
@@ -102,7 +102,7 @@ def test_late_partition_holds_instead_of_deciding():
 # follow-ups found while fixing the cases above ---------------------------
 
 def test_rerun_under_new_logic_version_does_not_open_second_signal(monkeypatch):
-    import expansion_signals.engine as engine_mod
+    import product_signal_router.engine as engine_mod
     wh, cr = _world()
     store, sink = SignalStore(), ListSink()
     run_daily(TODAY, wh, cr, store, sink)
@@ -152,7 +152,7 @@ def test_spike_with_real_adoption_still_counts_adoption():
 
 
 def test_merged_sibling_carries_no_ai_context():
-    from expansion_signals.ai_context import TemplateSummarizer
+    from product_signal_router.ai_context import TemplateSummarizer
     wh, _ = _world()
     rows = list(wh.rows) + [ProductEvent("a2", e.day, e.kind, e.user_id, e.amount) for e in wh.rows]
     wh2 = InMemoryWarehouse({"a1": wh.created["a1"], "a2": wh.created["a1"]}, rows, TODAY)
@@ -178,7 +178,7 @@ def test_unanswered_signal_is_not_resent_after_expiry():
 
 
 def test_duplicate_warehouse_rows_are_counted_once():
-    from expansion_signals.features import compute_features
+    from product_signal_router.features import compute_features
     created = TODAY - timedelta(days=120)
     rows = daily_events("a", TODAY - timedelta(days=59), 60, 100, ["u1"])
     dupes = [ProductEvent(e.account_id, e.day, e.kind, e.user_id, e.amount, event_id=e.event_id)

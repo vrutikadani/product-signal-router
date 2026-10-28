@@ -1,12 +1,12 @@
 # Decision logic
 
-Logic version **1.5.0**. Every threshold lives in [`expansion_signals/config.py`](../expansion_signals/config.py). None of them are fitted; they are starting points for a backtest to replace.
+Logic version **1.5.0**. Every threshold lives in [`product_signal_router/config.py`](../product_signal_router/config.py). None of them are fitted; they are starting points for a backtest to replace.
 
 The engine answers three separate questions and only then makes a decision:
 
 | Question | Output | Changes the decision? |
 |---|---|---|
-| How much expansion behavior is there? | **Signal strength**: NONE / LOW / MEDIUM / HIGH | Yes: NONE never surfaces |
+| How much qualifying change in product behavior is there? | **Signal strength**: NONE / LOW / MEDIUM / HIGH | Yes: NONE never surfaces |
 | How far should we trust that reading? | **Confidence**: LOW / MEDIUM / HIGH, with reasons | Only LOW blocks. Otherwise it ranks signals for capacity and is shown to the seller |
 | Can this owner usefully act today? | **Actionability**: rules passed and blocking reasons | Yes: any blocking rule stops the signal |
 
@@ -16,9 +16,9 @@ Keeping these apart is the point. Atlas Software in the demo is HIGH strength, H
 
 | Product behavior (examples) | Family | What it suggests |
 |---|---|---|
-| Spend growth, transactions, consumption, API calls, compute | **Usage / value** | Consumption or value expansion |
+| Spend, transactions, consumption, API calls, compute | **Usage / value** | Growth in consumption or value |
 | Additional users, seats, departments, admins | **Organizational adoption** | More of the organization is buying in |
-| Additional cards, features, workflows, integrations | **Product breadth** | Operational embedding: harder to replace, more surface to expand |
+| Additional modules, features, workflows, integrations | **Product breadth** | Operational embedding: harder to replace, more of the product in use |
 
 | Family | Fires when | HIGH band when |
 |---|---|---|

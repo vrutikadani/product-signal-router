@@ -1,12 +1,12 @@
 from datetime import timedelta
 
-from expansion_signals import Band, Decision, SignalStore, evaluate
-from expansion_signals.ai_context import TemplateSummarizer
+from product_signal_router import Band, Decision, SignalStore, evaluate
+from product_signal_router.ai_context import TemplateSummarizer
 
 from helpers import TODAY, crm, feats
 
 
-def test_expanding_org_surfaces():
+def test_multi_family_account_surfaces():
     ev = evaluate(feats(), crm(), SignalStore(), TODAY)
     assert ev.strength == Band.HIGH
     assert ev.confidence == Band.HIGH

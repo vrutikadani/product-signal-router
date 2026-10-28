@@ -1,6 +1,6 @@
 import json
 
-from expansion_signals import demo_api
+from product_signal_router import demo_api
 
 BASE = dict(account="t", account_age_days=120, consumption_30d=18000, velocity=2.6, top_user_share=.25,
             users_total=14, users_added_30d=6, features_total=4, features_added_30d=2,

@@ -10,7 +10,7 @@ Evidence in this repository:
 - [`docs/evidence/review_findings_run.txt`](evidence/review_findings_run.txt): the three review cases failing on 1.4.0
 - the commit history, in the order the work happened: v1, the failing adversarial cases, the fixes, the replay, then the review cases and their fixes. The project was built in one focused session, so the timestamps are close together. The commits are not reconstructed after the fact
 
-## The main failure: onboarding looked like expansion, and the safeguard did nothing
+## The main failure: onboarding looked like growth, and the safeguard did nothing
 
 **What happened.** On logic 1.1.0 the replay sent 17 signals to accounts in the *steady large* archetype. These accounts are big from day one and never grow. All 17 fired when the account was 30 to 38 days old.
 
@@ -25,7 +25,7 @@ Evidence in this repository:
 - The one-transaction spike had the same shape. v1 computed `largest_event_share_30d` and then never used it. The fix recomputes velocity without the dominant event; if the growth disappears, the value family doesn't fire.
 - Once the velocity fix was in, the replay showed 30 signals going to *flat small* accounts. Users and features created in signup week were being counted as "added in the last 30 days". Setup done in the first 7 days of an account's life is now excluded from adoption and breadth (1.4.0).
 
-**What it cost in recall.** Recall *fell* after the fix, from 0.237 to 0.158. Two of the "caught" expansions had been steady large accounts surfaced by accident during onboarding. Removing the false positive also removed a lucky true positive. The honest number was lower, and the large steady accounts now show up where they belong: as false negatives.
+**What it cost in recall.** Recall *fell* after the fix, from 0.237 to 0.158. Two of the "caught" conversions had been steady large accounts surfaced by accident during onboarding. Removing the false positive also removed a lucky true positive. The honest number was lower, and the large steady accounts now show up where they belong: as false negatives.
 
 ## The second failure: a quiet system that looked careful
 
@@ -38,7 +38,7 @@ The replay disagreed. Letting any single family surface at MEDIUM:
 | Two families required (1.2.0) | 63 | 0.175 | 0.158 |
 | One family is enough (sensitivity run) | 175 | 0.171 | 0.421 |
 
-Precision did not move. The rule was cutting volume, not noise, and it hid most of the expansions. A system tuned like this looks disciplined (few alerts, few dismissals) while it misses most of the accounts that matter.
+Precision did not move. The rule was cutting volume, not noise, and it hid most of the conversions. A system tuned like this looks disciplined (few alerts, few dismissals) while it misses most of the accounts that matter.
 
 **Caveat.** These outcomes come from synthetic archetypes I wrote, so this table doesn't prove that corroboration fails to help in real data. It shows that "two families" was a belief, not a measured result, and that its effect on recall was large.
 
@@ -71,13 +71,13 @@ I asked a reviewer with no context on the build to read the code as a Staff Engi
 | The warehouse replays a partition (duplicate rows) | `event_id` was in the model and never used. A duplicated month doubled consumption and fired the value family on its own | Rows are deduplicated on `event_id` in feature computation |
 | The day's partition is one day late | `lag <= 1` passed, so the first late day was decided on a window missing its last day. In the replay, every late-data HOLD was on the second late day, and two signals went out on the first | Any missing partition holds |
 
-The review also caught a flaw in the evaluation. **The simulated sellers knew the future.** They only dismissed accounts that weren't going to expand, so in the replay a dismissal could never cost a real expansion. Sellers are now outcome-blind, and per-signal precision went from 0.214 to 0.198. The miss audit also had a misleading label. "No behavior change" really meant "no signal fired", and it included accounts whose behavior had moved but stayed below threshold. It's now split.
+The review also caught a flaw in the evaluation. **The simulated sellers knew the future.** They only dismissed accounts that weren't going to convert, so in the replay a dismissal could never cost a real conversion. Sellers are now outcome-blind, and per-signal precision went from 0.214 to 0.198. The miss audit also had a misleading label. "No behavior change" really meant "no signal fired", and it included accounts whose behavior had moved but stayed below threshold. It's now split.
 
 Four bugs across the three rounds share one pattern: a field or concept was in the model, and nothing enforced it (`owner_active`, `largest_event_share_30d`, `event_id`, episode expiry). A test that only checks the easy side of a boundary passes in that situation. Each of the new tests checks the other side (day 22 and day 70, lag 1, duplicates).
 
 ## What I'd watch for next
 
-- **Velocity is late.** In the replay, many *org expander* accounts expanded before the 30-vs-30 velocity crossed 2x. Median lead time is 16 days. A shorter window (14 vs 14) or a slope over weekly buckets might fire earlier, at the cost of more noise. That should be backtested, not assumed.
+- **Velocity is late.** In the replay, many *org adopter* accounts converted before the 30-vs-30 velocity crossed 2x. Median lead time is 16 days. A shorter window (14 vs 14) or a slope over weekly buckets might fire earlier, at the cost of more noise. That should be backtested, not assumed.
 - **Capacity doesn't bind in the replay** (0 account-days held in 1.5). With 12 owners and 400 accounts that is expected. In production, capacity needs a real number from Sales before launch.
 - **The coverage audit is circular here.** It catches 7 of 7 missed large steady accounts because the synthetic large steady accounts are, by construction, the top decile. On real data its hit rate is unknown.
 - **Seasonality.** A 30-vs-30 velocity reads a quarter-end, a budget cycle or an annual event as growth. The synthetic world has no seasonality, so nothing here tests it. Real data would need year-over-year or same-period baselines.

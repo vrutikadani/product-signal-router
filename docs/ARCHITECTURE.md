@@ -22,15 +22,15 @@ flowchart TD
 
 | Module | Responsibility | Production equivalent |
 |---|---|---|
-| [`features.py`](../expansion_signals/features.py) | Events → one row per account per day | A SQL model in the warehouse |
-| [`signals.py`](../expansion_signals/signals.py) | Strength families and confidence | Same logic, in SQL or a scheduled job |
-| [`actionability.py`](../expansion_signals/actionability.py) | Rules that block a strong signal | Same job, reading a CRM snapshot |
-| [`engine.py`](../expansion_signals/engine.py) | One account, one day → `Evaluation` | Same job |
-| [`pipeline.py`](../expansion_signals/pipeline.py) | The daily batch, CRM-account merge, capacity | Orchestrator task after the warehouse refresh |
-| [`state.py`](../expansion_signals/state.py) | Signal records, lifecycle, feedback | A table, or a custom CRM object with history |
-| [`adapters.py`](../expansion_signals/adapters.py) | `WarehouseSource`, `CrmSource`, `SellerSink` protocols, plus in-memory versions | Warehouse client, CRM API client, task/queue writer |
-| [`ai_context.py`](../expansion_signals/ai_context.py) | Optional post-decision summary | A model call behind a feature flag |
-| [`evaluation.py`](../expansion_signals/evaluation.py) | Replay, metrics, false-negative and coverage audits | A weekly notebook or dashboard |
+| [`features.py`](../product_signal_router/features.py) | Events → one row per account per day | A SQL model in the warehouse |
+| [`signals.py`](../product_signal_router/signals.py) | Strength families and confidence | Same logic, in SQL or a scheduled job |
+| [`actionability.py`](../product_signal_router/actionability.py) | Rules that block a strong signal | Same job, reading a CRM snapshot |
+| [`engine.py`](../product_signal_router/engine.py) | One account, one day → `Evaluation` | Same job |
+| [`pipeline.py`](../product_signal_router/pipeline.py) | The daily batch, CRM-account merge, capacity | Orchestrator task after the warehouse refresh |
+| [`state.py`](../product_signal_router/state.py) | Signal records, lifecycle, feedback | A table, or a custom CRM object with history |
+| [`adapters.py`](../product_signal_router/adapters.py) | `WarehouseSource`, `CrmSource`, `SellerSink` protocols, plus in-memory versions | Warehouse client, CRM API client, task/queue writer |
+| [`ai_context.py`](../product_signal_router/ai_context.py) | Optional post-decision summary | A model call behind a feature flag |
+| [`evaluation.py`](../product_signal_router/evaluation.py) | Replay, metrics, false-negative and coverage audits | A weekly notebook or dashboard |
 
 The engine uses only the Python standard library. That's why the demo can load the same files in the browser through Pyodide. CI enforces it.
 
