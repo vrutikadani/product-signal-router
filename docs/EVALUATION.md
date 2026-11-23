@@ -17,7 +17,7 @@
 
 - 400 accounts drawn from seven archetypes ([`synthetic.py`](../product_signal_router/synthetic.py)): org adopter, breadth adopter, whale, one-transaction spike, steady large, slow grower, flat small.
 - CRM: about 6% never matched, 5% unowned, 3% with a departed owner, 8% domain-matched, 8% with an open opportunity. Two pairs of product accounts share one CRM account. About 12% of owned accounts receive an unanswered sequence step.
-- Simulated sellers respond 1 to 4 days after delivery, **without knowing the outcome**: 30% work it, 30% dismiss it as "not a fit", 15% snooze, 25% never respond. Before 1.5 the simulated sellers only dismissed accounts that weren't going to convert, so a dismissal could never cost a real conversion. That flattered precision, and an independent review caught it.
+- Simulated sellers respond 1 to 4 days after delivery, **without knowing the outcome**: 30% work it, 30% dismiss it as "not a fit", 15% snooze, 25% never respond. Before 1.5 the simulated sellers only dismissed accounts that weren't going to convert, so a dismissal could never cost a real conversion. That flattered precision, and a pre-publication review caught it.
 - Two warehouse partitions (June 10 and 11) arrive late.
 
 **The limit of this.** I wrote the archetypes and their conversion probabilities, so the replay can't tell you whether these signals predict outcomes anywhere real. What it does show is that the measurement works: misses get explained, replay is deterministic, late data is held, dismissals stick, and threshold changes show up as precision and recall moving in opposite directions. It also found real bugs (see the [postmortem](FAILURE_POSTMORTEM.md)).

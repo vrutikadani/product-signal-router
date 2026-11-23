@@ -162,7 +162,7 @@ def test_merged_sibling_carries_no_ai_context():
     assert loser.ai_context["used"] is False
 
 
-# found in an independent review after 1.4.0 ------------------------------
+# found in a pre-publication review of 1.4.0 -----------------------------
 
 def test_unanswered_signal_is_not_resent_after_expiry():
     store = SignalStore()
