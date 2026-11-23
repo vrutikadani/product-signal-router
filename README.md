@@ -130,6 +130,7 @@ docs/                    architecture, decision logic, evaluation, postmortem, e
 CI runs the tests on Python 3.11 to 3.13, fails if the committed evaluation report or demo manifest is stale, and checks that the engine imports only the standard library. The SQLite store (`sqlite_store.py`, stdlib `sqlite3`) is left out of the demo and that check, because Pyodide ships sqlite3 separately.
 
 A walkthrough for explaining the design in an interview: [INTERVIEW_WALKTHROUGH.md](docs/INTERVIEW_WALKTHROUGH.md).
+Design context (GTM engineering layers, comparison with LangChain's GTM agents): [DESIGN_CONTEXT.md](docs/DESIGN_CONTEXT.md).
 
 ## Where this pattern applies
 
