@@ -25,7 +25,19 @@ class CrmSource(Protocol):
 
 
 class SellerSink(Protocol):
+    """Puts a surfaced signal in front of the seller.
+
+    `signal_key` is the idempotency key. A real sink writes it as the external
+    ID of the CRM task (or message), so a retry after a timeout updates the
+    same task instead of creating a second one. Raise any exception for a
+    failure worth one retry; raise PermanentDeliveryError when a retry cannot
+    help (owner mailbox gone, task type rejected).
+    """
     def deliver(self, ev: Evaluation, signal_key: str) -> None: ...
+
+
+class PermanentDeliveryError(Exception):
+    """The sink will never accept this signal; do not retry."""
 
 
 @dataclass

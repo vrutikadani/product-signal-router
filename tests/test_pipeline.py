@@ -7,7 +7,7 @@ from product_signal_router.features import compute_features
 from product_signal_router.models import ProductEvent
 from product_signal_router.pipeline import run_daily
 
-from helpers import TODAY, crm, daily_events, feats
+from helpers import TODAY, crm, daily_events, feats, surface
 
 
 def test_new_account_ramp_is_not_value_growth():
@@ -72,7 +72,7 @@ def test_replay_keeps_capacity_slots():
 def test_unanswered_signal_is_not_resent():
     store = SignalStore()
     d0 = TODAY - timedelta(days=16)
-    store.record_surfaced(evaluate(feats(as_of=d0, data_loaded_through=d0), crm(), store, d0))
+    surface(store, evaluate(feats(as_of=d0, data_loaded_through=d0), crm(), store, d0))
     ev = evaluate(feats(), crm(), store, TODAY)          # past cooldown, but still unanswered
     assert ev.decision == Decision.HOLD
     assert "still waiting on the seller" in ev.blocking_reasons[0]

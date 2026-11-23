@@ -4,7 +4,7 @@
 
 Product Signal Router is a reference implementation for evaluating account-level product events and deciding when they warrant GTM action. It is a Python pipeline. It scores each account against deterministic qualification rules, keeps signal strength separate from evidence confidence, and applies suppression, cooldowns and seller capacity so owners don't get duplicate or low-value alerts. The result is a ranked, auditable action routed to the CRM owner, with seller feedback and a replay harness that audits missed signals.
 
-Adversarial replay and independent review exposed failures in suppression, ownership, episode state, account identity and the evaluator itself. The [postmortem](docs/FAILURE_POSTMORTEM.md) documents what broke and how the fixes changed the design.
+Adversarial tests, a replay and a pre-publication review exposed failures in suppression, ownership, episode state, account identity and the evaluator itself. The [postmortem](docs/FAILURE_POSTMORTEM.md) documents what broke and how the fixes changed the design.
 
 ![Signal Inspector: a HIGH-strength, HIGH-confidence account suppressed because a seller already has an open opportunity](docs/assets/inspector-suppressed.png)
 
@@ -41,10 +41,11 @@ Joining product data to CRM records is easy. Deciding what deserves a seller's t
 product events ─► daily features ─► strength (3 families) + confidence
                                             │
 CRM context ──────────────────────► actionability rules ─► one per CRM account ─► owner capacity
-                                            │                                          │
-signal store (feedback, episodes) ──────────┘                    SURFACE ─► optional AI note ─► owner
-                                                                 ROUTE   ─► ownership queue
-                                                                 HOLD / SUPPRESS ─► recorded with reason
+                                            ▲                                          │
+signal store ───────────────────────────────┘                                          ▼
+(feedback, episodes, delivery state;   SURFACE ─► optional AI note ─► record (pending) ─► sink ─► DELIVERED
+ in memory or SQLite)                  ROUTE / HOLD / SUPPRESS ─► returned with the reason, not stored
+                                       (a queue for ROUTE is proposed, not built)
 ```
 
 | Product behavior | Signal family | What it indicates |
@@ -55,10 +56,12 @@ signal store (feedback, episodes) ──────────┘             
 
 The mechanisms that keep this reliable:
 
-- **Account-day deduplication.** A signal's key is the account and the day its features describe, so replaying a day or re-running it under new logic never opens a second signal.
+- **Account-day deduplication.** A signal's key is the account and the day its features describe, so replaying a day or re-running it under new logic never opens a second signal. The same key goes to the sink as its idempotency key.
+- **Delivery state.** A signal is recorded as pending, then sent, and marked delivered only when the sink returns. A sink error is recorded on that account and the batch continues. Replaying the day retries it once. Only delivered signals count as memory.
+- **Backfill never delivers.** Re-running a day older than the latest one processed records the decisions and sends nothing. Memory reads later days too, so a dismissal made after the backfilled day still holds.
 - **Episodes, not daily alerts.** An open signal is held while it waits on the seller. After it expires unanswered, the account stays quiet unless strength rises.
-- **Identity resolution.** Several product accounts can map to one CRM account. Only one signal per CRM account goes out per day, with a deterministic winner.
-- **Ownership checks.** No owner, an inactive owner or more than one CRM match routes the signal to a queue instead of guessing.
+- **One signal per CRM account.** The engine does not match product accounts to CRM accounts. It takes the match as input (`crm_account_ids`, zero, one or several). If several product accounts carry the same CRM account, only one signal goes out per day, with a deterministic winner.
+- **Ownership checks.** No CRM match, more than one, no owner or an inactive owner returns ROUTE with the reason, instead of guessing. A queue to work those is proposed, not built.
 - **Engagement suppression.** An open opportunity or a recent two-way conversation suppresses. A one-way sequence email does not; it becomes a note for the seller.
 - **Missing-data handling.** If the day's warehouse partition is missing, the account is held, not decided on a partial window. Duplicate warehouse rows are dropped on event ID.
 - **Seller capacity.** Each owner gets at most N new signals per rolling week. The overflow is held and ranked, with the reason recorded.
@@ -67,7 +70,7 @@ Full rules and thresholds: [DECISION_LOGIC.md](docs/DECISION_LOGIC.md). Componen
 
 ## The demo
 
-Six fictional accounts, each a scenario. Every input is editable, and **Evaluate** runs the same Python engine the tests use, loaded in the browser.
+Six fictional accounts, each a scenario. Every input is editable. **Evaluate** runs the repository's Python in the browser (Pyodide): `demo_api.run` builds one account's daily features and CRM context from the form and calls `pipeline.run_batch`, the same engine, CRM merge, capacity, signal store and delivery code the daily job uses. It skips `features.compute_features` (the form holds feature values, not raw events) and the warehouse and CRM adapters. With one account per run, merge and capacity never change the outcome. The store is in memory and resets on reload.
 
 | Scenario | Account | Outcome | What it shows |
 |---|---|---|---|
@@ -99,9 +102,9 @@ Each one came from a failing test or a replay result. The [postmortem](docs/FAIL
 - **"Recent CRM activity suppresses" became "recent *two-way* conversation suppresses".** A sequence email nobody answered was blocking signals as "already engaged".
 - **"Has an owner" became "has an active owner".** The inactive-owner field was in the v1 model and never checked.
 - **Confidence stopped being used as a control.** v1 lowered confidence for short history, and MEDIUM confidence still surfaces, so 17 signals went to large, flat accounts during their onboarding ramp. Anything that must stop a signal is now a rule.
-- **Engine memory reads only earlier days**, because replaying a day changed its own answer. That exposed a second bug: the signal key included the logic version, so a re-run under new logic could now duplicate. The key became account-day.
+- **Engine memory reads only earlier days**, because replaying a day changed its own answer. That exposed a second bug: the signal key included the logic version, so a re-run under new logic could now duplicate. The key became account-day. Later, 1.6 widened memory to every *other* day, delivered signals only, because backfilling a day before a dismissal re-delivered.
 - **The unit of decision moved from product account to CRM account.** Two workspaces for one company sent two signals to one seller.
-- **A signal became an episode, not a daily alert.** An unanswered signal was being re-sent every cooldown period. My first fix only stretched that period from 14 to 21 days, which a reviewer caught. Silence now counts as a soft "no".
+- **A signal became an episode, not a daily alert.** An unanswered signal was being re-sent every cooldown period. My first fix only stretched that period from 14 to 21 days, which the pre-publication review caught. Silence now counts as a soft "no".
 - **Volume control moved from the strength rule to seller capacity.** Requiring two families looked careful, but in the replay it cut recall from 0.42 to 0.16 with no precision gain.
 - **Signup-week setup stopped counting as adoption.**
 - **"Up to a day late is fine" became "any missing partition holds".** The first late day was being decided on a partial window.
@@ -111,20 +114,22 @@ Each one came from a failing test or a replay result. The [postmortem](docs/FAIL
 
 ```bash
 pip install -r requirements-dev.txt   # pytest only; the engine is standard library
-make test                             # 40 tests, including the adversarial cases
+make test                             # 57 tests, including the adversarial cases
 make eval                             # regenerate evals/REPORT.md
 make demo                             # serve the demo on http://localhost:8000/web/
 ```
 
 ```
-product_signal_router/   engine (features, signals, actionability, pipeline, state, adapters, ai_context, evaluation)
+product_signal_router/   engine (features, signals, actionability, pipeline, state, sqlite_store, adapters, ai_context, evaluation)
 tests/                   unit, adversarial and pipeline tests
 evals/                   replay script and the committed report
 web/                     static demo (Pyodide)
 docs/                    architecture, decision logic, evaluation, postmortem, evidence
 ```
 
-CI runs the tests on Python 3.11 to 3.13, fails if the committed evaluation report or demo manifest is stale, and checks that the engine imports only the standard library.
+CI runs the tests on Python 3.11 to 3.13, fails if the committed evaluation report or demo manifest is stale, and checks that the engine imports only the standard library. The SQLite store (`sqlite_store.py`, stdlib `sqlite3`) is left out of the demo and that check, because Pyodide ships sqlite3 separately.
+
+A walkthrough for explaining the design in an interview: [INTERVIEW_WALKTHROUGH.md](docs/INTERVIEW_WALKTHROUGH.md).
 
 ## Where this pattern applies
 
@@ -132,6 +137,6 @@ Any business where customers adopt the product before they talk to Sales: PLG Sa
 
 ## Not included
 
-There is no real warehouse or CRM connector, no review-queue UI, no shadow mode, kill switch or circuit breaker (these are designed in [ARCHITECTURE.md](docs/ARCHITECTURE.md), not built), and no fitted thresholds.
+There is no real warehouse or CRM connector, no identity matching, no ownership or review queue, no scheduler, no shadow mode, kill switch or circuit breaker (these are designed in [ARCHITECTURE.md](docs/ARCHITECTURE.md), not built), and no fitted thresholds.
 
 <sub>Generalized reference implementation built on synthetic data. No employer source code, production customer data or confidential company logic.</sub>

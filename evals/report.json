@@ -71,7 +71,7 @@
     "2026-06-10",
     "2026-06-11"
   ],
-  "logic_version": "1.5.0",
+  "logic_version": "1.6.0",
   "median_lead_time_days": 16,
   "miss_causes": {
     "behavior moved but stayed below every threshold": 9,

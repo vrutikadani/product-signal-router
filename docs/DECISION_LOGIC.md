@@ -1,6 +1,6 @@
 # Decision logic
 
-Logic version **1.5.0**. Every threshold lives in [`product_signal_router/config.py`](../product_signal_router/config.py). None of them are fitted; they are starting points for a backtest to replace.
+Logic version **1.6.0**. Every threshold lives in [`product_signal_router/config.py`](../product_signal_router/config.py). None of them are fitted; they are starting points for a backtest to replace.
 
 The engine answers three separate questions and only then makes a decision:
 
@@ -41,7 +41,7 @@ Confidence starts at HIGH and is lowered, with a stated reason, by:
 | More than 80% of consumption from one user | MEDIUM |
 | CRM account matched by domain, not by ID | MEDIUM |
 
-Only LOW blocks a signal, and in 1.5 the only source of LOW is stale data, which the freshness rule already holds. So confidence doesn't decide anything on its own. It orders signals when an owner is over capacity, and it tells the seller how far to trust what they're reading. That's deliberate: an earlier version relied on MEDIUM confidence to stop bad signals, and it didn't (see the postmortem). Anything that must stop a signal is a rule in strength or actionability.
+Only LOW blocks a signal, and since 1.5 the only source of LOW is stale data, which the freshness rule already holds. So confidence doesn't decide anything on its own. It orders signals when an owner is over capacity, and it tells the seller how far to trust what they're reading. That's deliberate: an earlier version relied on MEDIUM confidence to stop bad signals, and it didn't (see the postmortem). Anything that must stop a signal is a rule in strength or actionability.
 
 ## 3. Actionability
 
@@ -63,7 +63,7 @@ Rules run in this order. The first failure decides the outcome; every rule is st
 
 One-way touches (a sequence step, an email sent, a call attempt) don't suppress. They are passed to the seller as a note: *"sequence step sent 4 days ago with no reply logged"*.
 
-Engine memory reads only signals from **earlier days**, and looks across all product accounts that share the CRM account. That makes replaying a day give the same answer.
+Engine memory reads the latest **delivered** signal on **any day except the one being evaluated**, and looks across all product accounts that share the CRM account. Excluding the evaluated day makes replaying a day give the same answer. Including later days means a backfilled day respects a dismissal made after it (until 1.6 memory read only earlier days, so backfilling a day before a "not a fit" re-delivered). A record the sink never accepted doesn't count: the seller never saw it.
 
 ## 4. Decision
 
@@ -75,9 +75,16 @@ otherwise                    -> SURFACE
 then, across the whole run:
   several product accounts on one CRM account -> one SURFACE, the rest SUPPRESS (merged)
   owner over weekly capacity                  -> overflow HOLD, ranked by strength, confidence, families
+  each step adds its own line to rules_passed (winner, within capacity) or blocking_reasons (merged, at capacity)
+then, delivery (pipeline._record_and_deliver):
+  record PENDING_DELIVERY -> sink.deliver -> DELIVERED
+  sink error      -> stays PENDING_DELIVERY, retried once when the same day is replayed, then DELIVERY_FAILED
+  PermanentDeliveryError -> DELIVERY_FAILED, no retry
+  backfill (day older than the latest processed day, or outside the freshness window)
+                  -> recorded as NOT_DELIVERED_BACKFILL, never sent
 ```
 
-`LOW` strength and `MONITOR` exist in the types, but no rule produces them in 1.5.0. Until 1.2.0, a single MEDIUM family produced LOW (monitor only). See the postmortem for why that changed.
+`LOW` strength and `MONITOR` exist in the types, but no rule produces them in 1.6.0. Until 1.2.0, a single MEDIUM family produced LOW (monitor only). See the postmortem for why that changed.
 
 ## 5. Seller feedback
 

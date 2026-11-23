@@ -1,6 +1,6 @@
 # Failure postmortem
 
-Three rounds of testing broke what I'd built. Unit tests written against the design passed. Cases written to break it did not. A replay over synthetic history found problems neither set of tests had covered. An independent review of the finished version then found three more bugs and a flaw in the evaluation itself.
+Three rounds of testing broke what I'd built. Unit tests written against the design passed. Cases written to break it did not. A replay over synthetic history found problems neither set of tests had covered. A pre-publication review of the finished version then found three more bugs and a flaw in the evaluation itself. A later audit found delivery and backfill bugs (fourth round, below).
 
 Evidence in this repository:
 
@@ -61,9 +61,9 @@ Three cases passed on v1: a real meeting still suppresses, late warehouse data h
 
 Fix 3 (read only earlier days) broke something that had worked by accident. The v1 signal key was `account:day:logic_version`. v1 never duplicated on a re-run under new logic, because its cooldown counted the same-day record. Once same-day records stopped counting, a re-run under a new logic version would open a second signal for the same account-day. The key is now `account:day`, and `test_rerun_under_new_logic_version_does_not_open_second_signal` covers it. I confirmed the test fails with the old key.
 
-## Third round: an independent review of 1.4.0
+## Third round: a pre-publication review of 1.4.0
 
-I asked a reviewer with no context on the build to read the code as a Staff Engineer would and to try to break it. Three cases failed on 1.4.0 (they're at the bottom of `tests/test_adversarial.py`):
+A pre-publication review read the code as a Staff Engineer would and tried to break it. Three cases failed on 1.4.0 (they're at the bottom of `tests/test_adversarial.py`):
 
 | Case | 1.4.0 behavior | Fix (1.5.0) |
 |---|---|---|
@@ -74,6 +74,20 @@ I asked a reviewer with no context on the build to read the code as a Staff Engi
 The review also caught a flaw in the evaluation. **The simulated sellers knew the future.** They only dismissed accounts that weren't going to convert, so in the replay a dismissal could never cost a real conversion. Sellers are now outcome-blind, and per-signal precision went from 0.214 to 0.198. The miss audit also had a misleading label. "No behavior change" really meant "no signal fired", and it included accounts whose behavior had moved but stayed below threshold. It's now split.
 
 Four bugs across the three rounds share one pattern: a field or concept was in the model, and nothing enforced it (`owner_active`, `largest_event_share_30d`, `event_id`, episode expiry). A test that only checks the easy side of a boundary passes in that situation. Each of the new tests checks the other side (day 22 and day 70, lag 1, duplicates).
+
+## Fourth round: delivery and backfill (1.6.0)
+
+An audit of 1.5.0 looked at what happens when the world around the engine fails. The tests are in `tests/test_delivery.py` and `tests/test_store_and_replay.py`; the commit that adds them fails before the fixes.
+
+| Case | 1.5.0 behavior | Fix (1.6.0) |
+|---|---|---|
+| The sink raises | The record was written first and stayed OPEN. The replay delivered nothing. The next day held the account as "open signal waiting on the seller" for 21 days. One exception stopped the whole batch | Record as pending, mark delivered after the sink returns, record the error per account, retry once on replay. Only delivered records count as memory |
+| Backfill a day before a dismissal | Memory read only earlier days, so the backfilled day re-delivered | Memory reads delivered records on any other day. A backfill records and never delivers |
+| The job restarts | Memory lived in a Python dict | `SqliteSignalStore` |
+| Replay CRM inputs | Only last activity was as-of. Opportunity and owner came from the final state | `AsOfCrm` applies opportunity and owner history. Identity still has none (see EVALUATION.md) |
+| Merge and capacity change the decision | The trace showed no rule for them | Each step adds its own line |
+
+The pattern is the same as before: the happy path was tested, the failure path wasn't.
 
 ## What I'd watch for next
 

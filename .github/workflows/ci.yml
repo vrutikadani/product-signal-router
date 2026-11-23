@@ -26,7 +26,9 @@ jobs:
           python scripts/build_manifest.py
           git diff --exit-code web/py_manifest.json
       - name: Engine is standard library only (the browser demo depends on it)
+        # sqlite_store.py is standard library too, but Pyodide ships sqlite3 as a
+        # separate package, so the demo never loads it (see scripts/build_manifest.py).
         run: |
-          if grep -rnE "^(from|import) " product_signal_router --include=*.py | grep -vE "from (\.|__future__)|import (json|random|dataclasses|datetime|enum|typing|collections|statistics)|from (dataclasses|datetime|enum|typing|collections|statistics) "; then
+          if grep -rnE "^(from|import) " product_signal_router --include=*.py --exclude=sqlite_store.py | grep -vE "from (\.|__future__)|import (json|random|dataclasses|datetime|enum|typing|collections|statistics)|from (dataclasses|datetime|enum|typing|collections|statistics) "; then
             echo "non-stdlib import in engine"; exit 1
           fi

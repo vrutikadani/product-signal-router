@@ -9,7 +9,7 @@ from product_signal_router.adapters import InMemoryCrm, InMemoryWarehouse, ListS
 from product_signal_router.models import ProductEvent
 from product_signal_router.pipeline import run_daily
 
-from helpers import TODAY, crm, daily_events, feats
+from helpers import TODAY, crm, daily_events, feats, surface
 
 
 # 1. outreach that nobody answered is not engagement
@@ -73,7 +73,7 @@ def test_dismissal_respected_after_cooldown():
     store = SignalStore()
     d0 = TODAY - timedelta(days=20)
     first = evaluate(feats(as_of=d0, data_loaded_through=d0), crm(), store, d0)
-    rec, _ = store.record_surfaced(first)
+    rec, _ = surface(store, first)
     store.dismiss(rec.key, d0, "not_a_fit")
     ev = evaluate(feats(), crm(), store, TODAY)   # same behavior, 20 days later
     assert ev.decision == Decision.SUPPRESS
@@ -118,7 +118,7 @@ def test_dismissal_lifts_when_strength_rises():
                  consumption_30d=20000, consumption_prior_30d=5000)
     first = evaluate(weak, crm(), store, d0)
     assert first.strength == Band.MEDIUM
-    rec, _ = store.record_surfaced(first)
+    rec, _ = surface(store, first)
     store.dismiss(rec.key, d0, "not_a_fit")
     ev = evaluate(feats(), crm(), store, TODAY)   # now HIGH: value + adoption
     assert ev.decision == Decision.SURFACE
@@ -127,7 +127,7 @@ def test_dismissal_lifts_when_strength_rises():
 def test_wrong_owner_feedback_routes_until_fixed():
     store = SignalStore()
     d0 = TODAY - timedelta(days=20)
-    rec, _ = store.record_surfaced(evaluate(feats(as_of=d0, data_loaded_through=d0), crm(), store, d0))
+    rec, _ = surface(store, evaluate(feats(as_of=d0, data_loaded_through=d0), crm(), store, d0))
     store.dismiss(rec.key, d0, "wrong_owner")
     assert evaluate(feats(), crm(), store, TODAY).decision == Decision.ROUTE
     assert evaluate(feats(), crm(owner_id="rep_8"), store, TODAY).decision == Decision.SURFACE
@@ -136,7 +136,7 @@ def test_wrong_owner_feedback_routes_until_fixed():
 def test_bad_data_holds_until_cleared():
     store = SignalStore()
     d0 = TODAY - timedelta(days=20)
-    rec, _ = store.record_surfaced(evaluate(feats(as_of=d0, data_loaded_through=d0), crm(), store, d0))
+    rec, _ = surface(store, evaluate(feats(as_of=d0, data_loaded_through=d0), crm(), store, d0))
     store.dismiss(rec.key, d0, "bad_data")
     assert evaluate(feats(), crm(), store, TODAY).decision == Decision.HOLD
     store.clear(rec.key, TODAY)
@@ -162,7 +162,7 @@ def test_merged_sibling_carries_no_ai_context():
     assert loser.ai_context["used"] is False
 
 
-# found in an independent review after 1.4.0 ------------------------------
+# found in a pre-publication review of 1.4.0 -----------------------------
 
 def test_unanswered_signal_is_not_resent_after_expiry():
     store = SignalStore()
@@ -172,7 +172,7 @@ def test_unanswered_signal_is_not_resent_after_expiry():
         d = start + timedelta(days=i)
         ev = evaluate(feats(as_of=d, data_loaded_through=d), crm(), store, d)
         if ev.decision == Decision.SURFACE:
-            store.record_surfaced(ev)
+            surface(store, ev)
             surfaced_days.append(i)
     assert surfaced_days == [0]
 

@@ -17,7 +17,7 @@
 
 - 400 accounts drawn from seven archetypes ([`synthetic.py`](../product_signal_router/synthetic.py)): org adopter, breadth adopter, whale, one-transaction spike, steady large, slow grower, flat small.
 - CRM: about 6% never matched, 5% unowned, 3% with a departed owner, 8% domain-matched, 8% with an open opportunity. Two pairs of product accounts share one CRM account. About 12% of owned accounts receive an unanswered sequence step.
-- Simulated sellers respond 1 to 4 days after delivery, **without knowing the outcome**: 30% work it, 30% dismiss it as "not a fit", 15% snooze, 25% never respond. Before 1.5 the simulated sellers only dismissed accounts that weren't going to convert, so a dismissal could never cost a real conversion. That flattered precision, and an independent review caught it.
+- Simulated sellers respond 1 to 4 days after delivery, **without knowing the outcome**: 30% work it, 30% dismiss it as "not a fit", 15% snooze, 25% never respond. Before 1.5 the simulated sellers only dismissed accounts that weren't going to convert, so a dismissal could never cost a real conversion. That flattered precision, and a pre-publication review caught it.
 - Two warehouse partitions (June 10 and 11) arrive late.
 
 **The limit of this.** I wrote the archetypes and their conversion probabilities, so the replay can't tell you whether these signals predict outcomes anywhere real. What it does show is that the measurement works: misses get explained, replay is deterministic, late data is held, dismissals stick, and threshold changes show up as precision and recall moving in opposite directions. It also found real bugs (see the [postmortem](FAILURE_POSTMORTEM.md)).
@@ -31,11 +31,12 @@
 | (sensitivity) | One family is enough | 175 | 0.171 | 0.421 | Same precision, 2.7x recall |
 | 1.3.0 | One family = MEDIUM; weekly seller capacity | 165 | 0.176 | 0.421 | 30 signals to flat small accounts: signup-week users counted |
 | 1.4.0 | Exclude signup week from adoption and breadth | 112 | 0.214 | 0.342 | Simulated sellers still saw the outcome |
-| **1.5.0** | Review fixes: expired signals stay quiet, duplicate rows dropped, any warehouse gap holds; outcome-blind sellers | **106** | **0.198** (0.235 per account) | **0.342** | Current |
+| 1.5.0 | Review fixes: expired signals stay quiet, duplicate rows dropped, any warehouse gap holds; outcome-blind sellers | 106 | 0.198 (0.235 per account) | 0.342 | |
+| **1.6.0** | Delivery state (outbox, one retry), backfill never delivers, memory reads delivered records on any other day | **106** | **0.198** (0.235 per account) | **0.342** | Current. Same numbers: the forward replay has no sink failures and no backfill, so these paths are covered by tests, not by the replay |
 
 The 1.1.0 and 1.4.0 reports are saved in [`docs/evidence/`](evidence/). The rows in between were observed during development; they weren't committed separately, so they can't be regenerated from history.
 
-## Current misses (1.5.0)
+## Current misses (1.6.0)
 
 | Cause | Count | What would address it |
 |---|---|---|
@@ -49,6 +50,26 @@ The 1.1.0 and 1.4.0 reports are saved in [`docs/evidence/`](evidence/). The rows
 Signals detect *change*. A large account that is already large and stays flat never fires, and those are often the accounts with the most room to grow.
 
 The coverage audit lists the top 10% of accounts by 30-day consumption that no signal surfaced and that have no open opportunity or two-way seller conversation in the last 30 days. It needs no outcome labels, so it can run from the first week. It is a weekly review for RevOps or sales leadership, not a seller alert. In the replay it lists 33 accounts and contains all 7 large steady accounts the signals missed. As noted above, that's partly by construction.
+
+## Replay inputs and look-ahead leakage
+
+The replay asks the CRM what it knew on each day (`AsOfCrm` in [`evaluation.py`](../product_signal_router/evaluation.py)). Three fields have history:
+
+| Field | How it is replayed | Tested by |
+|---|---|---|
+| Last activity | Activity dated after the replay day is hidden | `AsOfCrm` since 1.1 |
+| Open opportunity | Hidden before `opportunity_opened_on` | `test_asof_crm_hides_future_opportunity_and_owner_change` |
+| Owner and owner active | Taken from `owner_history` as of the replay day | same test |
+| Identity (`crm_account_ids`, match method) | **No history.** Treated as constant | not covered |
+
+In the synthetic world, opportunities are open from before the replay window and owners never change, so the current numbers carry no leakage from these fields. The as-of logic matters when the replay runs on real CRM data. A real replay built from today's CRM snapshot, without history tables, leaks in known directions:
+
+- **Opportunity opened after the replay day.** Often the opportunity exists *because* the account converted. Seen early, it suppresses signals that would have been sent and would have been hits. That biases recall, precision and delivered volume **down**. The system looks worse than it was.
+- **Owner assigned after the replay day.** An account that was unowned then looks owned, so signals that would have been routed are delivered. That biases delivered volume and recall **up**.
+- **Owner who left after the replay day.** A past owner who was active looks inactive, so signals that were deliverable are routed. That biases recall **down**.
+- **Identity resolved after the replay day.** Same as a late owner: biases recall **up**. This one is still open here.
+
+So a snapshot-based replay is not conservative in one direction. It needs CRM field history (opportunity created dates, owner change history) before its numbers mean anything.
 
 ## What a real evaluation needs
 
