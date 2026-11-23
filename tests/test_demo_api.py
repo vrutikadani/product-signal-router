@@ -35,3 +35,10 @@ def test_coverage_flag_only_on_no_signal():
                coverage_cutoff=12000)["coverage_flag"]
     demo_api.reset()
     assert not run(coverage_cutoff=12000)["coverage_flag"]
+
+
+def test_evaluate_goes_through_the_batch_pipeline():
+    out = run()
+    # recorded and delivered by pipeline.run_batch, not by a demo-only path
+    assert out["signal"]["delivery_status"] == "DELIVERED"
+    assert any("capacity" in p for p in out["rules_passed"])
