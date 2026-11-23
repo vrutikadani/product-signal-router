@@ -25,7 +25,12 @@ LOOKBACK_DAYS = 60
 
 
 class AsOfCrm:
-    """CRM snapshot as it looked on a given day (activity logged later is invisible)."""
+    """CRM as it looked on a given day.
+
+    Hidden from earlier days: activity logged later, an opportunity opened later,
+    and owner changes made later (from `SyntheticAccount.owner_history`). Identity
+    (crm_account_ids, match_method) has no history and is taken as constant.
+    """
 
     def __init__(self, accounts: dict[str, SyntheticAccount]):
         self.accounts = accounts
@@ -36,8 +41,15 @@ class AsOfCrm:
         if a is None:
             return CrmContext(account_id, [], "none")
         ctx = replace(a.crm, crm_account_ids=list(a.crm.crm_account_ids))
-        if ctx.last_activity_date and self.day and ctx.last_activity_date > self.day:
+        if self.day is None:
+            return ctx
+        if ctx.last_activity_date and ctx.last_activity_date > self.day:
             ctx.last_activity_date, ctx.last_activity_type = None, None
+        if a.opportunity_opened_on is not None:
+            ctx.open_opportunity = ctx.open_opportunity and a.opportunity_opened_on <= self.day
+        if a.owner_history:
+            past = [h for h in sorted(a.owner_history, key=lambda h: h[0]) if h[0] <= self.day]
+            ctx.owner_id, ctx.owner_active = (past[-1][1], past[-1][2]) if past else (None, True)
         return ctx
 
 
@@ -147,7 +159,7 @@ def measure(accounts: list[SyntheticAccount], rp: Replay, start: date, end: date
         e = a.converted_on
         if e is None or not (start + timedelta(days=14) <= e <= end):
             continue
-        if a.crm.open_opportunity:
+        if a.crm.open_opportunity and (a.opportunity_opened_on is None or a.opportunity_opened_on <= e):
             engaged_conversions += 1
             continue
         eligible.append(a)

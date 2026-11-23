@@ -51,6 +51,26 @@ Signals detect *change*. A large account that is already large and stays flat ne
 
 The coverage audit lists the top 10% of accounts by 30-day consumption that no signal surfaced and that have no open opportunity or two-way seller conversation in the last 30 days. It needs no outcome labels, so it can run from the first week. It is a weekly review for RevOps or sales leadership, not a seller alert. In the replay it lists 33 accounts and contains all 7 large steady accounts the signals missed. As noted above, that's partly by construction.
 
+## Replay inputs and look-ahead leakage
+
+The replay asks the CRM what it knew on each day (`AsOfCrm` in [`evaluation.py`](../product_signal_router/evaluation.py)). Three fields have history:
+
+| Field | How it is replayed | Tested by |
+|---|---|---|
+| Last activity | Activity dated after the replay day is hidden | `AsOfCrm` since 1.1 |
+| Open opportunity | Hidden before `opportunity_opened_on` | `test_asof_crm_hides_future_opportunity_and_owner_change` |
+| Owner and owner active | Taken from `owner_history` as of the replay day | same test |
+| Identity (`crm_account_ids`, match method) | **No history.** Treated as constant | not covered |
+
+In the synthetic world, opportunities are open from before the replay window and owners never change, so the current numbers carry no leakage from these fields. The as-of logic matters when the replay runs on real CRM data. A real replay built from today's CRM snapshot, without history tables, leaks in known directions:
+
+- **Opportunity opened after the replay day.** Often the opportunity exists *because* the account converted. Seen early, it suppresses signals that would have been sent and would have been hits. That biases recall, precision and delivered volume **down**. The system looks worse than it was.
+- **Owner assigned after the replay day.** An account that was unowned then looks owned, so signals that would have been routed are delivered. That biases delivered volume and recall **up**.
+- **Owner who left after the replay day.** A past owner who was active looks inactive, so signals that were deliverable are routed. That biases recall **down**.
+- **Identity resolved after the replay day.** Same as a late owner: biases recall **up**. This one is still open here.
+
+So a snapshot-based replay is not conservative in one direction. It needs CRM field history (opportunity created dates, owner change history) before its numbers mean anything.
+
 ## What a real evaluation needs
 
 1. **A backtest on history** before launch: run the logic over the last 6 to 12 months and look at how many accounts would have surfaced each week, how many were already being worked, lead time to the outcome, and how much volume each threshold produces.

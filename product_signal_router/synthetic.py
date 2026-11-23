@@ -10,7 +10,7 @@ not whether these signals predict outcomes in any real business.
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Optional
 
@@ -41,6 +41,10 @@ class SyntheticAccount:
     onset: date
     converted_on: Optional[date]
     crm: CrmContext
+    # CRM history, so the replay can see the CRM as it was on each day.
+    # None / empty means "unchanged over the whole history".
+    opportunity_opened_on: Optional[date] = None
+    owner_history: list[tuple[date, Optional[str], bool]] = field(default_factory=list)  # (from, owner, active)
 
 
 def _crm(rng: random.Random, acct: str, crm_id: str) -> CrmContext:
@@ -76,6 +80,11 @@ def generate(n: int = 400, seed: int = 7) -> tuple[list[SyntheticAccount], list[
             converted_on = min(onset + timedelta(days=rng.randint(10, 50)), END + timedelta(days=30))
         accounts.append(SyntheticAccount(acct, arch, created, onset, converted_on,
                                          _crm(rng, acct, f"crm_{i:04d}")))
+        if accounts[-1].crm.open_opportunity:
+            # The generator's opportunities predate the replay window. Owners never
+            # change. So the replay has no CRM changes to leak; AsOfCrm still
+            # applies the history, for fixtures and real snapshots that have it.
+            accounts[-1].opportunity_opened_on = START
 
         users = [f"{acct}_u{k}" for k in range(rng.randint(1, 3))]
         for u in users:
