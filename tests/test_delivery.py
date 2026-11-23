@@ -176,3 +176,37 @@ def test_crm_merge_step_is_in_the_trace():
     assert any("one signal per CRM account" in p for p in win.rules_passed)
     assert lose.blocking_reasons[0].startswith("merged into")
     assert not any("one signal per CRM account" in p for p in lose.rules_passed)
+
+
+# 3. replays after a newer day and after giving up ---------------------------
+
+def test_replaying_a_pending_day_after_a_newer_day_does_not_send(store):
+    """A day that failed transiently becomes a backfill once a newer day is
+    processed. Replaying it must not send the old signal."""
+    from product_signal_router.state import DELIVERED
+    wh, cr = _world()
+    only_a2 = InMemoryWarehouse({"a2": wh.created["a2"]}, [e for e in wh.rows if e.account_id == "a2"], TODAY)
+    yday = TODAY - timedelta(days=1)
+    sink = FlakySink({"a1": 1})
+    run_daily(yday, wh, cr, store, sink)              # a1 fails once and stays pending
+    run_daily(TODAY, only_a2, cr, store, sink)        # a newer day is processed
+    r = run_daily(yday, wh, cr, store, sink)          # the failed day is replayed
+    assert r.backfill
+    assert _calls(sink, "a1") == [f"a1:{yday}"]       # no second send
+    assert r.delivered == []
+    assert store.get(f"a1:{yday}").delivery_status != DELIVERED
+
+
+def test_undeliverable_signal_does_not_hold_capacity_on_replay(store):
+    """With capacity 1, a1 wins the slot and fails permanently. A same-day
+    replay must give the slot to a2, not reserve it for a1 again."""
+    wh, cr = _world()
+    cfg = Config(seller_capacity_per_week=1)
+    sink = FlakySink({"a1": 99}, permanent=True)
+    r1 = run_daily(TODAY, wh, cr, store, sink, cfg)
+    assert [e.decision for e in sorted(r1.evaluations, key=lambda e: e.account_id)] == [Decision.SURFACE, Decision.HOLD]
+    r2 = run_daily(TODAY, wh, cr, store, sink, cfg)
+    a2 = [e for e in r2.evaluations if e.account_id == "a2"][0]
+    assert a2.decision == Decision.SURFACE, a2.blocking_reasons
+    assert r2.delivered == [f"a2:{TODAY}"]
+    assert len(_calls(sink, "a1")) == 1
