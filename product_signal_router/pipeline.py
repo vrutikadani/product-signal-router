@@ -6,7 +6,9 @@ make signals arrive faster than the data underneath them changes.
 Delivery works like an outbox. The record is written as PENDING_DELIVERY, the
 sink is called, and only a returned call marks it DELIVERED. A sink error is
 recorded on that account's record and the batch carries on. Replaying the same
-day retries an undelivered record once, with the same idempotency key.
+day retries an undelivered record once, with the same idempotency key, unless
+a newer day has been processed since: the replay is then a backfill and sends
+nothing. A record that will never be sent takes no seller capacity on a replay.
 
 Backfill: a day older than the latest day already processed (or older than the
 freshness window) is decided and recorded, but nothing is delivered. A seller
@@ -24,7 +26,7 @@ from .config import Config
 from .engine import evaluate
 from .features import compute_features
 from .models import AccountFeatures, Band, CrmContext, Decision, Evaluation
-from .state import DELIVERED, PENDING_DELIVERY, BaseSignalStore
+from .state import DELIVERED, DELIVERY_FAILED, NOT_DELIVERED_BACKFILL, PENDING_DELIVERY, BaseSignalStore
 
 
 @dataclass
@@ -96,10 +98,12 @@ def _record_and_deliver(result: RunResult, store: BaseSignalStore, sink: SellerS
         if ev.decision != Decision.SURFACE:
             continue
         rec, _ = store.record_surfaced(ev, backfill=result.backfill)
-        if rec.delivery_status != PENDING_DELIVERY:
-            # already delivered (a replay), gave up, or recorded during a backfill
-            if rec.delivery_status == DELIVERED:
-                result.duplicates_skipped += 1
+        if rec.delivery_status == DELIVERED:
+            result.duplicates_skipped += 1       # a replay of a delivered day
+            continue
+        if result.backfill or rec.delivery_status != PENDING_DELIVERY:
+            # A backfill never sends, even a record left pending by an earlier
+            # failed run of this day. Otherwise: gave up, or recorded in a backfill.
             continue
         try:
             sink.deliver(ev, rec.key)
@@ -112,6 +116,7 @@ def _record_and_deliver(result: RunResult, store: BaseSignalStore, sink: SellerS
         result.delivered.append(rec.key)
 
 
+_UNDELIVERABLE = (DELIVERY_FAILED, NOT_DELIVERED_BACKFILL)
 _RANK = {Band.HIGH: 3, Band.MEDIUM: 2, Band.LOW: 1, Band.NONE: 0}
 
 
@@ -149,7 +154,9 @@ def _apply_seller_capacity(evals: list[Evaluation], store: BaseSignalStore, as_o
     """Each owner gets at most N new signals per rolling week. Today's candidates
     are ranked (strength, confidence, number of families, account id) and the
     overflow is held, visibly, instead of being delivered and ignored. Signals
-    already recorded for today (a replay) keep their slot."""
+    already recorded for today (a replay) keep their slot, unless they can never
+    be sent (delivery gave up, or recorded during a backfill): those take no
+    slot, so the next candidate is not held behind them."""
     by_owner: dict[str, list[Evaluation]] = {}
     for ev in evals:
         if ev.decision == Decision.SURFACE and ev.owner_id:
@@ -157,8 +164,13 @@ def _apply_seller_capacity(evals: list[Evaluation], store: BaseSignalStore, as_o
     week_start = as_of - timedelta(days=6)
     for owner, group in by_owner.items():
         used = store.delivered_to_owner(owner, week_start, as_of)
-        replayed = [ev for ev in group if store.get(store.key_for(ev))]
-        fresh = sorted((ev for ev in group if ev not in replayed),
+        recs = {id(ev): store.get(store.key_for(ev)) for ev in group}
+        dead = [ev for ev in group if recs[id(ev)] and recs[id(ev)].delivery_status in _UNDELIVERABLE]
+        for ev in dead:
+            ev.rules_passed.append(f"owner {owner} capacity not used "
+                                   f"({recs[id(ev)].delivery_status}: will not be sent)")
+        replayed = [ev for ev in group if recs[id(ev)] and ev not in dead]
+        fresh = sorted((ev for ev in group if not recs[id(ev)]),
                        key=lambda e: (-_RANK[e.strength], -_RANK[e.confidence],
                                       -sum(f.fired for f in e.families), e.account_id))
         cap = config.seller_capacity_per_week
