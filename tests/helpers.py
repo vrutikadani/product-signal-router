@@ -32,3 +32,11 @@ def daily_events(account_id, start: date, days: int, per_day: float, users: list
         u = users[i % len(users)]
         out.append(ProductEvent(account_id, d, kind, user_id=u, amount=per_day, event_id=f"{account_id}-{d}-{i}"))
     return out
+
+
+def surface(store, ev):
+    """Record a surfaced evaluation and mark it delivered, as the pipeline does
+    after the sink returns. Only delivered records count as engine memory."""
+    rec, created = store.record_surfaced(ev)
+    store.mark_delivered(rec.key, ev.as_of)
+    return store.get(rec.key), created

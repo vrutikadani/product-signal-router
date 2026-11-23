@@ -172,8 +172,8 @@ def measure(accounts: list[SyntheticAccount], rp: Replay, start: date, end: date
         by_arch[arch] = {"accounts": sum(1 for a in accounts if a.archetype == arch),
                          "signals_delivered": len(sig), "eligible_conversions": len(el), "caught": len(ca)}
 
-    statuses = Counter(r.status for r in rp.store.records.values())
-    reasons = Counter(r.dismiss_reason for r in rp.store.records.values() if r.dismiss_reason)
+    statuses = Counter(r.status for r in rp.store.all_records())
+    reasons = Counter(r.dismiss_reason for r in rp.store.all_records() if r.dismiss_reason)
     decision_days = Counter(dec for h in rp.by_account.values() for _, dec, _ in h)
     held_on_late = sum(1 for h in rp.by_account.values() for d, dec, br in h
                        if d in rp.late_days and dec == "HOLD" and any("warehouse" in b for b in br))

@@ -1,15 +1,23 @@
-"""Thin JSON layer the browser demo calls (through Pyodide). The decision logic
-is the same engine the tests and the evaluation use; nothing is re-implemented
+"""Thin JSON layer the browser demo calls (through Pyodide).
+
+`run` builds one account's daily features and CRM context from the form, then
+calls `pipeline.run_batch`: the same engine, CRM-account merge, seller
+capacity, signal store and delivery code as the daily batch. With one account
+per run, merge and capacity never change the outcome, but their trace entries
+show. The only stage it skips is `features.compute_features`, because the form
+already holds feature values instead of raw events. Nothing is re-implemented
 in JavaScript."""
 from __future__ import annotations
 
 import json
 from datetime import date, timedelta
 
+from .adapters import ListSink
 from .ai_context import TemplateSummarizer
 from .config import LOGIC_VERSION, Config
 from .engine import evaluate
 from .models import AccountFeatures, CrmContext
+from .pipeline import run_batch
 from .state import SignalStore
 
 BASE_DAY = date(2026, 6, 30)
@@ -61,16 +69,20 @@ def run(payload_json: str) -> str:
     today = BASE_DAY + timedelta(days=_clock.get(acct, 0))
     f, crm = _inputs(p, today)
     summ = TemplateSummarizer() if p.get("ai", True) else None
-    ev = evaluate(f, crm, store, today, Config(), summ)
+    if p.get("record", True):
+        ev = run_batch(today, [(f, crm)], store, ListSink(), Config(), summ).evaluations[0]
+        if ev.decision.value == "SURFACE":
+            _last_key[acct] = store.key_for(ev)
+    else:
+        # re-render after seller feedback: read-only, records and delivers nothing
+        ev = evaluate(f, crm, store, today, Config(), summ)
     signal = None
-    if ev.decision.value == "SURFACE" and p.get("record", True):
-        rec, _ = store.record_surfaced(ev)
-        _last_key[acct] = rec.key
     key = _last_key.get(acct)
     if key and store.get(key):
         r = store.get(key)
         signal = {"key": r.key, "status": r.status, "history": r.history,
-                  "dismiss_reason": r.dismiss_reason, "strength_at_signal": r.strength}
+                  "dismiss_reason": r.dismiss_reason, "strength_at_signal": r.strength,
+                  "delivery_status": r.delivery_status}
     out = ev.to_dict()
     out.update({
         "today": today.isoformat(),

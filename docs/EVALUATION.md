@@ -31,11 +31,12 @@
 | (sensitivity) | One family is enough | 175 | 0.171 | 0.421 | Same precision, 2.7x recall |
 | 1.3.0 | One family = MEDIUM; weekly seller capacity | 165 | 0.176 | 0.421 | 30 signals to flat small accounts: signup-week users counted |
 | 1.4.0 | Exclude signup week from adoption and breadth | 112 | 0.214 | 0.342 | Simulated sellers still saw the outcome |
-| **1.5.0** | Review fixes: expired signals stay quiet, duplicate rows dropped, any warehouse gap holds; outcome-blind sellers | **106** | **0.198** (0.235 per account) | **0.342** | Current |
+| 1.5.0 | Review fixes: expired signals stay quiet, duplicate rows dropped, any warehouse gap holds; outcome-blind sellers | 106 | 0.198 (0.235 per account) | 0.342 | |
+| **1.6.0** | Delivery state (outbox, one retry), backfill never delivers, memory reads delivered records on any other day | **106** | **0.198** (0.235 per account) | **0.342** | Current. Same numbers: the forward replay has no sink failures and no backfill, so these paths are covered by tests, not by the replay |
 
 The 1.1.0 and 1.4.0 reports are saved in [`docs/evidence/`](evidence/). The rows in between were observed during development; they weren't committed separately, so they can't be regenerated from history.
 
-## Current misses (1.5.0)
+## Current misses (1.6.0)
 
 | Cause | Count | What would address it |
 |---|---|---|

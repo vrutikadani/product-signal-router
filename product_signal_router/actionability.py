@@ -4,9 +4,12 @@ A strong, trustworthy signal can still be non-actionable. Each rule returns
 (passed, label, decision_if_blocked). The first blocking rule decides the outcome;
 the rest are still reported so the inspector shows the whole picture.
 
-Engine memory (cooldown, snooze, dismissal) only looks at signals from *earlier*
-days. A signal recorded for today is the result of this evaluation, not a
-reason to block it; otherwise replaying a day changes the answer.
+Engine memory (cooldown, snooze, dismissal, open episode) reads the latest
+*delivered* signal for the account on any day except the one being evaluated.
+A signal recorded for this day is the result of this evaluation, not a reason
+to block it; otherwise replaying a day changes the answer. Later days count, so
+backfilling an old day respects a dismissal made after it. Undelivered records
+don't count: the seller never saw them.
 """
 from __future__ import annotations
 
@@ -50,10 +53,11 @@ def check_rules(f: AccountFeatures, crm: CrmContext, store: SignalStore, today: 
     lag = (today - f.data_loaded_through).days
     rules.append((lag <= c.max_data_lag_days, f"warehouse data is current (lag {lag}d)", Decision.HOLD))
 
-    # engine memory: earlier signals for this account (or its CRM account) only
-    last = store.last_surfaced(f.account_id, before=f.as_of, crm_account_id=crm.crm_account_id)
+    # engine memory: delivered signals for this account (or its CRM account), any other day
+    last = store.last_delivered(f.account_id, crm_account_id=crm.crm_account_id, exclude_as_of=f.as_of)
     if last is not None:
         age = (today - last.as_of).days
+        when = f"{age}d ago" if age >= 0 else f"on a later day ({last.as_of.isoformat()})"
         if last.status == DISMISSED:
             window = {"not_a_fit": c.dismiss_not_a_fit_days,
                       "bad_timing": c.dismiss_bad_timing_days,
@@ -66,19 +70,19 @@ def check_rules(f: AccountFeatures, crm: CrmContext, store: SignalStore, today: 
             elif window is not None:
                 rose = _ORDER.index(strength) > _ORDER.index(Band(last.strength))
                 active = age < window and not rose
-                label = (f"seller dismissed {age}d ago ({last.dismiss_reason}); "
+                label = (f"seller dismissed {when} ({last.dismiss_reason}); "
                          f"respected for {window}d unless strength rises above {last.strength}")
                 rules.append((not active, label, Decision.SUPPRESS))
         elif last.status == OPEN and age < c.open_signal_expiry_days:
             # A signal is an episode, not a daily alert: if the seller has not
             # answered the last one, do not send another on top of it.
-            rules.append((False, f"open signal from {age}d ago still waiting on the seller", Decision.HOLD))
+            rules.append((False, f"open signal from {when} still waiting on the seller", Decision.HOLD))
         elif last.status in (OPEN, EXPIRED):
             # Expired without an answer. Until 1.5 this fell through to the
             # cooldown rule, so the same signal was re-sent every 21 days.
             rose = _ORDER.index(strength) > _ORDER.index(Band(last.strength))
             quiet = age < c.unanswered_quiet_days and not rose
-            rules.append((not quiet, f"signal from {age}d ago expired unanswered; quiet for "
+            rules.append((not quiet, f"signal from {when} expired unanswered; quiet for "
                           f"{c.unanswered_quiet_days}d unless strength rises above {last.strength}",
                           Decision.SUPPRESS))
         else:

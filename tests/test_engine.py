@@ -3,7 +3,7 @@ from datetime import timedelta
 from product_signal_router import Band, Decision, SignalStore, evaluate
 from product_signal_router.ai_context import TemplateSummarizer
 
-from helpers import TODAY, crm, feats
+from helpers import TODAY, crm, feats, surface
 
 
 def test_multi_family_account_surfaces():
@@ -60,7 +60,7 @@ def test_stale_data_holds():
 def test_cooldown_holds():
     store = SignalStore()
     first = evaluate(feats(as_of=TODAY - timedelta(days=5)), crm(), store, TODAY - timedelta(days=5))
-    store.record_surfaced(first)
+    surface(store, first)
     ev = evaluate(feats(), crm(), store, TODAY)
     assert ev.decision == Decision.HOLD
 
